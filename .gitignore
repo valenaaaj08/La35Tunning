@@ -1,0 +1,29 @@
+# --- carpetas de compilación e indexación de Visual Studio ---
+.vs/
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+VisualStudioToolsByMisha/
+
+# --- Archivos de usuario y configuración local de VS ---
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+*.suo.tmp
+
+# --- MonoGame & Content Builder locales ---
+# Ignora las carpetas temporales de compilación de contenido (.mgcb)
+**/Content/bin/
+**/Content/obj/
+
+# --- Archivos del sistema operativo ---
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# --- Archivos de bases de datos locales (si usás SQLite local para pruebas) ---
+*.db-journal
+*.db-shm
+*.db-wal

@@ -10,6 +10,7 @@ namespace La35Tunning
     public class Game1 : Game
     {
         private GraphicsDeviceManager _graphics;
+        private Camera2D _camara;
         private SpriteBatch _spriteBatch;
         private Texture2D _texturaGol;
         private Texture2D _texturaUno;
@@ -22,7 +23,8 @@ namespace La35Tunning
         private Auto _autoUno;
         private Auto _autoClio;
         private Auto _autoCorsa;
-        private Vector2 _posicionAuto;
+        private Texture2D _texturaLlantaDefault;
+
 
         public Game1()
         {
@@ -34,11 +36,12 @@ namespace La35Tunning
         protected override void Initialize()
         {
             // TODO: Add your initialization logic here
-            _posicionAuto = new Vector2(200, 200);
+
 
 
             // Configuración para pantalla completa
             _graphics.IsFullScreen = true;
+            _camara = new Camera2D(GraphicsDevice);
 
             //aca puse un ajuste automatico a la resolucion del monitor
             _graphics.PreferredBackBufferWidth = GraphicsDevice.Adapter.CurrentDisplayMode.Width;
@@ -55,19 +58,26 @@ namespace La35Tunning
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            //aca les asigno una textura a cada variable, asi luego al crear el auto se la agrego
+            // 1. Cargamos las texturas exactamente con las mayúsculas como están en tu carpeta Content
             _texturaUno = Content.Load<Texture2D>("Uno");
             _texturaGol = Content.Load<Texture2D>("Gol");
             _texturaClio = Content.Load<Texture2D>("Clio");
             _texturaCorsa = Content.Load<Texture2D>("Corsa");
+            _texturaLlantaDefault = Content.Load<Texture2D>("LlantaDefault");
 
-            //aca creo los autos y les paso la textura correspondiente
+            // 2. Creamos los autos con sus datos base
             _autoGol = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, _texturaGol);
-            _autoUno = new Auto("Fiat Uno", 7.5f, 0.18f, 3800000, _texturaUno); // Un poquito más ágil de abajo
+            _autoUno = new Auto("Fiat Uno", 7.5f, 0.18f, 3800000, _texturaUno);
             _autoClio = new Auto("Renault Clio", 8.5f, 0.16f, 5200000, _texturaClio);
             _autoCorsa = new Auto("Chevrolet Corsa", 8f, 0.15f, 4200000, _texturaCorsa);
 
-            // 2. Inicializamos la tienda y le cargamos los autos disponibles
+            // 3. Les instalamos la llanta por defecto a todos
+            _autoGol.InstalarLlantas(_texturaLlantaDefault, _texturaLlantaDefault);
+            _autoUno.InstalarLlantas(_texturaLlantaDefault, _texturaLlantaDefault);
+            _autoClio.InstalarLlantas(_texturaLlantaDefault, _texturaLlantaDefault);
+            _autoCorsa.InstalarLlantas(_texturaLlantaDefault, _texturaLlantaDefault);
+
+            // 4. Inicializamos la tienda y cargamos los vehículos
             _concesionario = new Tienda();
             _concesionario.AgregarAuto(_autoGol);
             _concesionario.AgregarAuto(_autoUno);
@@ -76,8 +86,8 @@ namespace La35Tunning
 
             _jugadorPrincipal = new Jugador("Valentin", 5000000);
 
+            // Compra automática inicial para probar rápido
             _concesionario.VenderAuto(_jugadorPrincipal, 0);
-            // TODO: use this.Content to load your game content here
         }
 
         protected override void Update(GameTime gameTime)
@@ -85,7 +95,26 @@ namespace La35Tunning
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
 
-            // TODO: Add your update logic here
+            var teclado = Keyboard.GetState();
+
+            if (_jugadorPrincipal.AutoActual == null)
+            {
+                if (teclado.IsKeyDown(Keys.D1))
+                {
+                    _concesionario.VenderAuto(_jugadorPrincipal, 0);
+                }
+                else if (teclado.IsKeyDown(Keys.D2))
+                {
+                    _concesionario.VenderAuto(_jugadorPrincipal, 1);
+                }
+            }
+
+            // Si ya tiene auto, actualizamos su física y movemos la cámara una sola vez
+            if (_jugadorPrincipal.AutoActual != null)
+            {
+                _jugadorPrincipal.AutoActual.Update(gameTime);
+                _camara.Update(_jugadorPrincipal.AutoActual.Posicion);
+            }
 
             base.Update(gameTime);
         }
@@ -93,9 +122,15 @@ namespace La35Tunning
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.DarkSlateGray);
+            _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null, null, _camara.Transform);
+            
 
-            // TODO: Add your drawing code here
-            _spriteBatch.Begin();
+            
+            
+            if (_jugadorPrincipal.AutoActual != null)
+            {
+                _jugadorPrincipal.AutoActual.Draw(_spriteBatch);
+            }
 
             _spriteBatch.End();
 

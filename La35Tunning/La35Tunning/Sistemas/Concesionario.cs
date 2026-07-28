@@ -3,12 +3,12 @@ using La35Tunning.Entidades;
 
 namespace La35Tunning.Sistemas
 {
-    public class Tienda
+    public class Concesionario
     {
         // Lista interna para guardar los autos que están a la venta
         private List<Auto> _autosEnVenta = new List<Auto>();
 
-        public Tienda()
+        public Concesionario()
         {
             _autosEnVenta = new List<Auto>();
         }

@@ -13,43 +13,72 @@ namespace La35Tunning.Entidades
         private float _velocidadActual = 0f;
         private int _precio;
 
-
-
-        // Textura del auto y de las llantas por separado
-        private Texture2D _texturaAuto;
+        // Texturas del auto para diferentes pantallas
+        private Texture2D _texturaAuto;      // Perfil (Carreras / Concesionario)
+        private Texture2D _texturaTaller;    // Frente con capot abierto (Taller)
         private Texture2D _llantaDelantera;
         private Texture2D _llantaTrasera;
         public float AnguloLlanta { get; set; } = 0f;
-        private List<Componente> _componentesInstalados = new List<Componente>();
+
+        // Slots específicos para cada tipo de componente (nacen con stock por defecto)
+        private Motor _motorActual;
+        private Turbo _turboActual;
+        private Transmision _transmisionActual;
+        private Intercooler _intercoolerActual;
+        private Neumatico _neumaticoActual;
 
         public int Precio { get { return _precio; } }
         public string Modelo { get { return _modelo; } }
         public Texture2D TexturaAuto { get { return _texturaAuto; } }
+        public Texture2D TexturaTaller { get { return _texturaTaller; } }
 
-        public Auto(string modelo, float velocidadBase, float aceleracionBase, int precio, Texture2D textura)
+        public Motor MotorActual { get { return _motorActual; } }
+        public Turbo TurboActual { get { return _turboActual; } }
+        public Transmision TransmisionActual { get { return _transmisionActual; } }
+        public Intercooler IntercoolerActual { get { return _intercoolerActual; } }
+        public Neumatico NeumaticoActual { get { return _neumaticoActual; } }
+
+        public Auto(string modelo, float velocidadBase, float aceleracionBase, int precio, Texture2D textura, Texture2D texturaTaller)
         {
             _modelo = modelo;
             _velocidadMaximaBase = velocidadBase;
             _aceleracionBase = aceleracionBase;
             _texturaAuto = textura;
+            _texturaTaller = texturaTaller;
             _precio = precio;
             _posicion = new Vector2(100, 200);
+
+            // Inicialización de componentes de fábrica (Stock con multiplicador 1.0 y costo 0)
+            _motorActual = new Motor("Motor de Fábrica", 1.0f, 0);
+            _turboActual = new Turbo("Sin Turbo (Stock)", 1.0f, 0);
+            _transmisionActual = new Transmision("Transmisión de Fábrica", 1.0f, 0);
+            _intercoolerActual = new Intercooler("Sin Intercooler", 1.0f, 0);
+            _neumaticoActual = new Neumatico("Neumáticos de Fábrica", 1.0f, 0);
         }
 
-        // Método para equipar o cambiar las llantas
         public void InstalarLlantas(Texture2D llantaDelantera, Texture2D llantaTrasera)
         {
             _llantaDelantera = llantaDelantera;
             _llantaTrasera = llantaTrasera;
         }
 
+        public List<Componente> ObtenerComponentesInstalados()
+        {
+            var lista = new List<Componente>();
+            if (_motorActual != null) lista.Add(_motorActual);
+            if (_turboActual != null) lista.Add(_turboActual);
+            if (_transmisionActual != null) lista.Add(_transmisionActual);
+            if (_intercoolerActual != null) lista.Add(_intercoolerActual);
+            if (_neumaticoActual != null) lista.Add(_neumaticoActual);
+            return lista;
+        }
 
         public float MultiplicadorMotorTotal
         {
             get
             {
                 float acumulador = 1.0f;
-                foreach (var pieza in _componentesInstalados)
+                foreach (var pieza in ObtenerComponentesInstalados())
                 {
                     acumulador *= pieza.MultiplicadorRendimiento;
                 }
@@ -59,13 +88,32 @@ namespace La35Tunning.Entidades
 
         public void InstalarPieza(Componente nuevaPieza)
         {
-            _componentesInstalados.Add(nuevaPieza);
+            if (nuevaPieza is Motor motor)
+            {
+                _motorActual = motor;
+            }
+            else if (nuevaPieza is Turbo turbo)
+            {
+                _turboActual = turbo;
+            }
+            else if (nuevaPieza is Transmision transmision)
+            {
+                _transmisionActual = transmision;
+            }
+            else if (nuevaPieza is Intercooler intercooler)
+            {
+                _intercoolerActual = intercooler;
+            }
+            else if (nuevaPieza is Neumatico neumatico)
+            {
+                _neumaticoActual = neumatico;
+            }
         }
 
         public void MostrarFichaTecnica()
         {
             System.Console.WriteLine($"--- Ficha Técnica: {_modelo} ---");
-            foreach (var pieza in _componentesInstalados)
+            foreach (var pieza in ObtenerComponentesInstalados())
             {
                 System.Console.WriteLine($"- {pieza.Nombre} (Mod: {pieza.MultiplicadorRendimiento})");
             }
@@ -74,7 +122,7 @@ namespace La35Tunning.Entidades
         public int CalcularValorTotal()
         {
             int valorTotal = Precio;
-            foreach (var componente in _componentesInstalados)
+            foreach (var componente in ObtenerComponentesInstalados())
             {
                 valorTotal += componente.Costo;
             }
@@ -111,16 +159,14 @@ namespace La35Tunning.Entidades
 
             if (_velocidadActual != 0)
             {
-                AnguloLlanta += _velocidadActual * (float)gameTime.ElapsedGameTime.TotalSeconds * 2f; // El '2f' ajusta qué tan rápido giran visualmente
+                AnguloLlanta += _velocidadActual * (float)gameTime.ElapsedGameTime.TotalSeconds * 2f;
             }
         }
 
         public override void Draw(SpriteBatch spriteBatch)
         {
-            // 1. Dibujamos primero el chasis del auto
             spriteBatch.Draw(_texturaAuto, _posicion, Color.White);
 
-            // 2. Si tiene llantas asignadas, las dibujamos arriba calculando su posición
             if (_llantaDelantera != null && _llantaTrasera != null)
             {
                 Vector2 posicionRuedaDelantera = _posicion + new Vector2(360, 730);
@@ -128,11 +174,9 @@ namespace La35Tunning.Entidades
 
                 float escalaLlanta = 1f;
 
-                // Creamos los orígenes correctos para cada una (o uno compartido si miden igual)
                 Vector2 origenDelantera = new Vector2(_llantaDelantera.Width / 2f, _llantaDelantera.Height / 2f);
                 Vector2 origenTrasera = new Vector2(_llantaTrasera.Width / 2f, _llantaTrasera.Height / 2f);
 
-                // Usamos las variables correctas en el Draw
                 spriteBatch.Draw(_llantaDelantera, posicionRuedaDelantera, null, Color.White, AnguloLlanta, origenDelantera, escalaLlanta, SpriteEffects.None, 0f);
                 spriteBatch.Draw(_llantaTrasera, posicionRuedaTrasera, null, Color.White, AnguloLlanta, origenTrasera, escalaLlanta, SpriteEffects.None, 0f);
             }

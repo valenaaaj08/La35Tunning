@@ -2,15 +2,19 @@ namespace La35Tunning.Modelos
 {
     public class Componente
     {
-        public string Nombre { get; set; }
-        public int Costo { get; set; }
-        public float MultiplicadorRendimiento { get; set; }
+        private string _nombre;
+        private float _multiplicadorRendimiento;
+        private int _costo;
 
-        public Componente(string nombre, int costo, float multiplicadorRendimiento)
+        public string Nombre { get { return _nombre; } }
+        public float MultiplicadorRendimiento { get { return _multiplicadorRendimiento; } }
+        public int Costo { get { return _costo; } }
+
+        public Componente(string nombre, float multiplicadorRendimiento, int costo)
         {
-            Nombre = nombre;
-            Costo = costo;
-            MultiplicadorRendimiento = multiplicadorRendimiento;
+            _nombre = nombre;
+            _multiplicadorRendimiento = multiplicadorRendimiento;
+            _costo = costo;
         }
     }
 }

@@ -7,20 +7,18 @@ using La35Tunning.Escenas;
 
 namespace La35Tunning.Pantallas
 {
-    public class PantallaTaller : IPantallas
+    public class PantallaTaller : IPantalla
     {
         private Jugador _jugador;
         private Taller _taller;
-        private SpriteBatch _spriteBatch;
-        
-        // Posición donde se va a renderizar el auto de frente en el taller
-        private Vector2 _posicionAutoTaller = new Vector2(500, 250); 
 
-        public PantallaTaller(Jugador jugador, Taller taller, SpriteBatch spriteBatch)
+        // Posición donde se va a renderizar el auto de frente en el taller
+        private Vector2 _posicionAutoTaller = new Vector2(500, 250);
+
+        public PantallaTaller(Jugador jugador, Taller taller)
         {
             _jugador = jugador;
             _taller = taller;
-            _spriteBatch = spriteBatch;
         }
 
         public void Update(GameTime gameTime)
@@ -30,23 +28,22 @@ namespace La35Tunning.Pantallas
             // _taller.InstalarPieza(_jugador.AutoActual, indicePieza);)
         }
 
-        public void Draw(GameTime gameTime)
+        public void Draw(SpriteBatch spriteBatch)
         {
-            _spriteBatch.Begin();
+            // Nota: el Begin()/End() del SpriteBatch lo maneja quien orquesta
+            // las pantallas (por ejemplo Game1), no cada pantalla individualmente.
 
             // 1. Dibujar fondo del taller (paredes, herramientas, luces)
-            // _spriteBatch.Draw(_fondoTaller, Vector2.Zero, Color.White);
+            // spriteBatch.Draw(_fondoTaller, Vector2.Zero, Color.White);
 
             // 2. Dibujar el auto de frente con el capót abierto (si tiene la textura asignada)
             if (_jugador.AutoActual != null && _jugador.AutoActual.TexturaTaller != null)
             {
-                _spriteBatch.Draw(_jugador.AutoActual.TexturaTaller, _posicionAutoTaller, Color.White);
+                spriteBatch.Draw(_jugador.AutoActual.TexturaTaller, _posicionAutoTaller, Color.White);
             }
 
             // 3. Dibujar interfaz de usuario: dinero actual, listado de componentes con sus precios,
             // stages disponibles y selector de llantas.
-
-            _spriteBatch.End();
         }
     }
 }

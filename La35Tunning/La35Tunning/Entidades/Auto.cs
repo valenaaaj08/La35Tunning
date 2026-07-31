@@ -38,7 +38,7 @@ namespace La35Tunning.Entidades
         public Intercooler IntercoolerActual { get { return _intercoolerActual; } }
         public Neumatico NeumaticoActual { get { return _neumaticoActual; } }
 
-        public Auto(string modelo, float velocidadBase, float aceleracionBase, int precio, Texture2D textura, Texture2D texturaTaller)
+        public Auto(string modelo, float velocidadBase, float aceleracionBase, int precio, Texture2D textura, Texture2D texturaTaller = null)
         {
             _modelo = modelo;
             _velocidadMaximaBase = velocidadBase;

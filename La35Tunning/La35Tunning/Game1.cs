@@ -17,7 +17,7 @@ namespace La35Tunning
         private Texture2D _texturaClio;
         private Texture2D _texturaCorsa;
 
-        private Tienda _concesionario;
+        private Concesionario _concesionario;
         private Jugador _jugadorPrincipal;
         private Auto _autoGol;
         private Auto _autoUno;
@@ -58,12 +58,13 @@ namespace La35Tunning
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            // 1. Cargamos las texturas exactamente con las mayúsculas como están en tu carpeta Content
+            // 1. Cargamos las texturas exactamente con el mismo nombre (y mayúsculas/minúsculas)
+            // que tienen los archivos dentro de Content/, tal como están registrados en Content.mgcb
             _texturaUno = Content.Load<Texture2D>("Uno");
-            _texturaGol = Content.Load<Texture2D>("Gol");
-            _texturaClio = Content.Load<Texture2D>("Clio");
-            _texturaCorsa = Content.Load<Texture2D>("Corsa");
-            _texturaLlantaDefault = Content.Load<Texture2D>("LlantaDefault");
+            _texturaGol = Content.Load<Texture2D>("gol");
+            _texturaClio = Content.Load<Texture2D>("clio");
+            _texturaCorsa = Content.Load<Texture2D>("corsa");
+            _texturaLlantaDefault = Content.Load<Texture2D>("llantaDefault");
 
             // 2. Creamos los autos con sus datos base
             _autoGol = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, _texturaGol);
@@ -78,7 +79,7 @@ namespace La35Tunning
             _autoCorsa.InstalarLlantas(_texturaLlantaDefault, _texturaLlantaDefault);
 
             // 4. Inicializamos la tienda y cargamos los vehículos
-            _concesionario = new Tienda();
+            _concesionario = new Concesionario();
             _concesionario.AgregarAuto(_autoGol);
             _concesionario.AgregarAuto(_autoUno);
             _concesionario.AgregarAuto(_autoClio);

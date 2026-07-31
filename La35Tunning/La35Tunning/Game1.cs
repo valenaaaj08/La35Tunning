@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using La35Tunning.Sistemas;
 using La35Tunning.Entidades;
+using La35Tunning.Pantallas;
 
 namespace La35Tunning
 
@@ -24,6 +25,10 @@ namespace La35Tunning
         private Auto _autoClio;
         private Auto _autoCorsa;
         private Texture2D _texturaLlantaDefault;
+
+        // --- Pantalla de carrera (prototipo local, Etapa 2) ---
+        private Semaforo _semaforo;
+        private PantallaCarrera _pantallaCarrera;
 
 
         public Game1()
@@ -89,6 +94,26 @@ namespace La35Tunning
 
             // Compra automática inicial para probar rápido
             _concesionario.VenderAuto(_jugadorPrincipal, 0);
+
+            // 5. Armamos el semáforo con sus 6 estados posibles.
+            _semaforo = new Semaforo(
+                Content.Load<Texture2D>("semaforo1"),
+                Content.Load<Texture2D>("semaforo2"),
+                Content.Load<Texture2D>("semaforo3"),
+                Content.Load<Texture2D>("semaforo4"),
+                Content.Load<Texture2D>("semaforo5"),
+                Content.Load<Texture2D>("semaforoFallida"));
+
+            // 6. Armamos la pantalla de carrera: el jugador contra _autoUno
+            // como rival PROVISORIO (todavía no tenemos matchmaking en red
+            // ni la IA Fantasma, así que usamos un auto fijo del catálogo
+            // para poder probar la carrera ahora mismo).
+            _pantallaCarrera = new PantallaCarrera(
+                autoJugador: _jugadorPrincipal.AutoActual,
+                autoRival: _autoUno,
+                semaforo: _semaforo,
+                carrilJugadorY: 150f,
+                carrilRivalY: 450f);
         }
 
         protected override void Update(GameTime gameTime)
@@ -98,6 +123,8 @@ namespace La35Tunning
 
             var teclado = Keyboard.GetState();
 
+            // Antes de tener auto, dejamos las teclas 1/2 para comprar rápido
+            // (esto es de prueba, en la Etapa 5 esto va a ser un menú real).
             if (_jugadorPrincipal.AutoActual == null)
             {
                 if (teclado.IsKeyDown(Keys.D1))
@@ -110,10 +137,13 @@ namespace La35Tunning
                 }
             }
 
-            // Si ya tiene auto, actualizamos su física y movemos la cámara una sola vez
-            if (_jugadorPrincipal.AutoActual != null)
+            // Con auto y pantalla de carrera armada, dejamos que sea
+            // PantallaCarrera quien decida cómo se mueve el auto del
+            // jugador (respeta el semáforo, detecta salida en falso, etc.)
+            // en vez de moverlo libremente como antes.
+            if (_pantallaCarrera != null)
             {
-                _jugadorPrincipal.AutoActual.Update(gameTime);
+                _pantallaCarrera.Update(gameTime);
                 _camara.Update(_jugadorPrincipal.AutoActual.Posicion);
             }
 
@@ -123,17 +153,27 @@ namespace La35Tunning
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.DarkSlateGray);
-            _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null, null, _camara.Transform);
-            
 
-            
-            
-            if (_jugadorPrincipal.AutoActual != null)
+            // --- 1. Mundo del juego: se dibuja CON la transformación de
+            // cámara, así que se mueve/hace zoom siguiendo al auto. ---
+            _spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null, null, _camara.Transform);
+
+            if (_pantallaCarrera != null)
             {
-                _jugadorPrincipal.AutoActual.Draw(_spriteBatch);
+                _pantallaCarrera.Draw(_spriteBatch);
             }
 
             _spriteBatch.End();
+
+            // --- 2. HUD: se dibuja SIN transformación de cámara, así que
+            // queda fijo en la pantalla (el semáforo no se tiene que mover
+            // ni escalar cuando la cámara sigue al auto). ---
+            if (_pantallaCarrera != null)
+            {
+                _spriteBatch.Begin();
+                _pantallaCarrera.DibujarHud(_spriteBatch);
+                _spriteBatch.End();
+            }
 
             base.Draw(gameTime);
         }

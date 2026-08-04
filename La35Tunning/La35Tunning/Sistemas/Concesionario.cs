@@ -1,79 +1,85 @@
 using System.Collections.Generic;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
 using La35Tunning.Entidades;
+using La35Tunning.Modelos;
 
 namespace La35Tunning.Sistemas
 {
     public class Concesionario
     {
-        // Lista interna para guardar los autos que están a la venta
-        private List<Auto> _autosEnVenta = new List<Auto>();
+        private List<Auto> _catalogo;
 
-        public Concesionario()
+        public Concesionario(ContentManager content, Texture2D texturaLlantaDefault)
         {
-            _autosEnVenta = new List<Auto>();
+            _catalogo = new List<Auto>();
+
+            // Cargamos las texturas de los autos desde el contenido
+            Texture2D texturaUno = content.Load<Texture2D>("Uno");
+            Texture2D texturaGol = content.Load<Texture2D>("gol");
+            Texture2D texturaClio = content.Load<Texture2D>("clio");
+            Texture2D texturaCorsa = content.Load<Texture2D>("corsa");
+
+            // Creamos e instanciamos todos los vehículos del catálogo
+            Auto autoGol = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, texturaGol);
+            Auto autoUno = new Auto("Fiat Uno", 7.5f, 0.18f, 3800000, texturaUno);
+            Auto autoClio = new Auto("Renault Clio", 8.5f, 0.16f, 5200000, texturaClio);
+            Auto autoCorsa = new Auto("Chevrolet Corsa", 8f, 0.15f, 4200000, texturaCorsa);
+
+            // Les instalamos las llantas por defecto
+            autoGol.InstalarLlantas(texturaLlantaDefault, texturaLlantaDefault);
+            autoUno.InstalarLlantas(texturaLlantaDefault, texturaLlantaDefault);
+            autoClio.InstalarLlantas(texturaLlantaDefault, texturaLlantaDefault);
+            autoCorsa.InstalarLlantas(texturaLlantaDefault, texturaLlantaDefault);
+
+            // Los agregamos al catálogo
+            _catalogo.Add(autoGol);
+            _catalogo.Add(autoUno);
+            _catalogo.Add(autoClio);
+            _catalogo.Add(autoCorsa);
         }
 
-        // Método para agregar autos al catálogo
-        public void AgregarAuto(Auto nuevoAuto)
+        public List<Auto> ObtenerCatalogo()
         {
-            _autosEnVenta.Add(nuevoAuto);
+            return _catalogo;
         }
 
-        // Método para que el jugador compre un auto de la tienda
-        public bool VenderAuto(Jugador comprador, int indiceAuto)
+        // 1. Comprar un auto nuevo del catálogo
+        public bool ComprarAuto(Jugador jugador, int indiceAuto)
         {
-            if (indiceAuto >= 0 && indiceAuto < _autosEnVenta.Count)
+            if (indiceAuto < 0 || indiceAuto >= _catalogo.Count)
+                return false;
+
+            Auto autoAComprar = _catalogo[indiceAuto];
+
+            if (jugador.Dinero >= autoAComprar.Precio)
             {
-                Auto autoElegido = _autosEnVenta[indiceAuto];
-
-                if (comprador.Dinero >= autoElegido.Precio)
-                {
-                    comprador.Dinero -= autoElegido.Precio;
-                    comprador.AutoActual = autoElegido;
-                    
-                    // Lo sacamos de la tienda porque ya fue comprado
-                    _autosEnVenta.Remove(autoElegido);
-
-                    System.Console.WriteLine($"¡Felicitaciones! Te compraste el {autoElegido.Modelo}");
-                    return true;
-                }
-                else
-                {
-                    System.Console.WriteLine("¡No te alcanza la plata para este fierro!");
-                    return false;
-                }
+                jugador.RestarDinero(autoAComprar.Precio);
+                jugador.AsignarAuto(autoAComprar);
+                return true;
             }
 
-            System.Console.WriteLine("Opción inválida.");
             return false;
         }
 
-        // Método para que la tienda le compre el auto usado al jugador (a mitad de precio, incluyendo piezas)
-        public void ComprarAutoDeJugador(Jugador vendedor)
+        // 2. Vender el auto actual del jugador al concesionario (50% del valor base + modificaciones)
+        public bool VenderAutoAlConcesionario(Jugador jugador)
         {
-            if (vendedor.AutoActual != null)
-            {
-                // 1. Calculamos el valor total del auto (precio base + todas sus modificaciones)
-                int valorTotalAuto = vendedor.AutoActual.CalcularValorTotal();
+            if (jugador.AutoActual == null)
+                return false;
 
-                // 2. La tienda paga la mitad (50%)
-                int precioDeRecompra = valorTotalAuto / 2;
+            // Calculamos el valor de tasación: 50% del precio base del auto actual
+            decimal valorBaseReventa = jugador.AutoActual.Precio * 0.5m;
 
-                // 3. Le sumamos la plata al jugador
-                vendedor.Dinero += precioDeRecompra;
-                
-                System.Console.WriteLine($"¡Vendiste tu auto por ${precioDeRecompra} (50% del valor total con modificaciones)!");
-                
-                // Opcional: el auto vuelve a quedar disponible en la tienda
-                _autosEnVenta.Add(vendedor.AutoActual);
+            // Si querés sumar el valor estimado de las modificaciones (por ejemplo, si cada mejora suma un extra)
+            // Podrías calcularlo o sumarlo acá. Por ahora toma la base del vehículo.
+            decimal dineroGanado = valorBaseReventa;
 
-                // El jugador se queda sin auto actual
-                vendedor.AutoActual = null;
-            }
-            else
-            {
-                System.Console.WriteLine("No tenés ningún auto para vender.");
-            }
+            // Sumamos el dinero al jugador y le quitamos el auto actual
+            jugador.SumarDinero(dineroGanado);
+            jugador.AsignarAuto(null); // O el método que uses para desvincular el auto
+
+            return true;
         }
     }
 }

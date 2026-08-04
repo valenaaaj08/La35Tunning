@@ -1,49 +1,84 @@
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System.Collections.Generic;
 using La35Tunning.Entidades;
 using La35Tunning.Sistemas;
-using La35Tunning.Escenas;
+using La35Tunning.Modelos;
 
-namespace La35Tunning.Pantallas
+namespace La35Tunning.Escenas
 {
-    public class PantallaTaller : IPantalla
+    public class PantallaTaller
     {
-        private Jugador _jugador;
         private Taller _taller;
+        private Jugador _jugador;
+        
+        // Textura de fondo del taller
+        private Texture2D _fondoTaller;
 
-        // Posición donde se va a renderizar el auto de frente en el taller
-        private Vector2 _posicionAutoTaller = new Vector2(500, 250);
+        // Posición en pantalla donde se dibuja el auto de frente en el taller
+        private Vector2 _posicionDibujoAuto = new Vector2(400, 150);
 
-        public PantallaTaller(Jugador jugador, Taller taller)
+        public PantallaTaller(ContentManager content, Jugador jugador)
         {
+            _taller = new Taller(content);
             _jugador = jugador;
-            _taller = taller;
+
+            // Cargamos el fondo del taller desde el ContentPipeline (asumiendo que se llama "FondoTaller")
+            _fondoTaller = content.Load<Texture2D>("FondoTaller");
         }
 
         public void Update(GameTime gameTime)
         {
-            // Acá iría la lógica de detección de clicks en los botones de la interfaz
-            // (por ejemplo, si hace clic en "Comprar Motor Stage 1", llamás a:
-            // _taller.InstalarPieza(_jugador.AutoActual, indicePieza);)
+            var teclado = Keyboard.GetState();
+
+            if (_jugador.AutoActual != null)
+            {
+                // Ejemplo: Presionando Enter instala la primera pieza al auto actual
+                if (teclado.IsKeyDown(Keys.Enter))
+                {
+                    _taller.InstalarPieza(_jugador.AutoActual, 0); 
+                }
+            }
         }
 
-        public void Draw(SpriteBatch spriteBatch)
+        public void Draw(SpriteBatch spriteBatch, SpriteFont fuente)
         {
-            // Nota: el Begin()/End() del SpriteBatch lo maneja quien orquesta
-            // las pantallas (por ejemplo Game1), no cada pantalla individualmente.
+            if (_jugador == null) return;
 
-            // 1. Dibujar fondo del taller (paredes, herramientas, luces)
-            // spriteBatch.Draw(_fondoTaller, Vector2.Zero, Color.White);
-
-            // 2. Dibujar el auto de frente con el capót abierto (si tiene la textura asignada)
-            if (_jugador.AutoActual != null && _jugador.AutoActual.TexturaTaller != null)
+            // 1. Dibujar primero el fondo del taller (ocupa toda la pantalla o la posición inicial)
+            if (_fondoTaller != null)
             {
-                spriteBatch.Draw(_jugador.AutoActual.TexturaTaller, _posicionAutoTaller, Color.White);
+                spriteBatch.Draw(_fondoTaller, Vector2.Zero, Color.White);
             }
 
-            // 3. Dibujar interfaz de usuario: dinero actual, listado de componentes con sus precios,
-            // stages disponibles y selector de llantas.
+            // 2. Dibujar el auto actual de frente (usando TexturaTaller)
+            if (_jugador.AutoActual != null && _jugador.AutoActual.TexturaTaller != null)
+            {
+                spriteBatch.Draw(_jugador.AutoActual.TexturaTaller, _posicionDibujoAuto, Color.White);
+                
+                // Mostrar información del auto y dinero actual
+                spriteBatch.DrawString(fuente, $"Auto: {_jugador.AutoActual.Modelo}", new Vector2(50, 50), Color.White);
+                spriteBatch.DrawString(fuente, $"Dinero: ${_jugador.Dinero}", new Vector2(50, 80), Color.Green);
+            }
+            else
+            {
+                spriteBatch.DrawString(fuente, "No hay ningún auto en el taller.", new Vector2(50, 50), Color.Red);
+            }
+
+            // 3. Listar las piezas disponibles en el taller para comprar
+            Vector2 posicionTexto = new Vector2(50, 200);
+            spriteBatch.DrawString(fuente, "--- PIEZAS DISPONIBLES EN TALLER ---", posicionTexto, Color.Yellow);
+            posicionTexto.Y += 30;
+
+            for (int i = 0; i < _taller.CatalogoPiezas.Count; i++)
+            {
+                Componente pieza = _taller.CatalogoPiezas[i];
+                string textoPieza = $"{i + 1}. {pieza.Nombre} - ${pieza.Costo}";
+                spriteBatch.DrawString(fuente, textoPieza, posicionTexto, Color.White);
+                posicionTexto.Y += 25;
+            }
         }
     }
 }

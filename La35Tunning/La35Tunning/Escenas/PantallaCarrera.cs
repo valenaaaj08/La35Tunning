@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Input;
 using La35Tunning.Entidades;
 using La35Tunning.Sistemas;
 
-namespace La35Tunning.Pantallas
+namespace La35Tunning.Escenas
 {
     // Las 3 etapas por las que pasa una carrera. Es lo mismo que un enum
     // en Java, y lo usamos para que Update() sepa qué lógica correr.
@@ -23,7 +23,7 @@ namespace La35Tunning.Pantallas
     // ni de la IA Fantasma (esas son las Etapas 3, 4 y 9 de la propuesta).
     // Cuando eso esté listo, en vez de moverlo con AvanzarDistancia() fijo,
     // se va a mover con la posición que mande el servidor o la IA.
-    public class PantallaCarrera : IPantalla
+    public class PantallaCarrera : IPantallas
     {
         private readonly Auto _autoJugador;
         private readonly Auto _autoRival;

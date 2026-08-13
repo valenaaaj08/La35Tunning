@@ -31,7 +31,7 @@ El modo multijugador se implementa mediante una arquitectura cliente-servidor, g
 El proyecto utiliza un conjunto de tecnologías modernas orientadas al desarrollo de videojuegos de escritorio.
 
 * **C#** – Lenguaje de programación principal.
-* **MonoGame 3.8.1** – Framework para el desarrollo del videojuego, encargado del renderizado, audio, entrada y ciclo principal del juego.
+* **MonoGame 3.8.5** – Framework para el desarrollo del videojuego, encargado del renderizado, audio, entrada y ciclo principal del juego.
 * **.NET 8** – Plataforma de ejecución.
 * **Visual Studio 2022** – Entorno de desarrollo (IDE).
 * **Sockets TCP/UDP** – Comunicación de red para el modo multijugador.

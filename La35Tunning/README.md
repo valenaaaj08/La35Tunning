@@ -1,46 +1,89 @@
 # La35Tunning 🚗💨
-> **Videojuego de carreras de aceleración (drag racing) en 2D con enfoque multijugador en red local.**
 
-Proyecto desarrollado para la materia **Programación Sobre Redes** de 6.º año en la **Escuela Técnica Nº 35 D.E. 18 "Ing. Eduardo Latzina"** (Especialidad: Computación).
+Videojuego de carreras de aceleración (drag racing) en 2D con enfoque multijugador en red local.
+
+Proyecto desarrollado para la materia Laboratorio y Programación de 6.º año en la Escuela Técnica Nº 35 D.E. 18 "Ing. Eduardo Latzina" (Especialidad: Computación / Automotores).
 
 ---
 
 ## 👥 Integrantes del Grupo
-* **Valentin Von korff**
-* **Valentino Tropea**
-* **Mauro Zielinski**
+
+* Valentin Von Korff
+* Valentino Tropea
+* Mauro Zielinski
 
 ---
 
 ## 📝 Descripción del Juego
-**La35Tunning** es un videojuego de carreras de aceleración (*drag racing*) en 2D con perspectiva de cámara fija y vista lateral, fuertemente inspirado en la cultura automovilística de las picadas urbanas argentinas. Los jugadores se enfrentan en apasionantes duelos de 400 metros sobre escenarios locales icónicos, como la *Av. Lope de Vega*, compitiendo a bordo de clásicos populares de la calle argentina como el *Fiat Uno*, *VW Gol G3* y *Chevrolet Corsa*. 
 
-La jugabilidad del MVP se centra en la precisión: el momento exacto de aceleración en el semáforo para evitar salidas anticipadas (descalificación), y una correcta administración de la economía virtual para comprar piezas (motor, neumáticos, turbos) y tunear el rendimiento del vehículo en el garaje. Todo coordinado y validado en tiempo real mediante una robusta arquitectura cliente-servidor para garantizar la integridad competitiva.
+La35Tunning es un videojuego de carreras de aceleración (drag racing) en 2D con cámara fija y vista lateral, inspirado en la cultura automovilística de las picadas urbanas argentinas.
+
+Los jugadores compiten en emocionantes duelos de 400 metros sobre escenarios inspirados en lugares emblemáticos de Buenos Aires, como la Av. Lope de Vega, utilizando vehículos clásicos muy populares en Argentina, entre ellos el Fiat Uno, Volkswagen Gol G3 y Chevrolet Corsa.
+
+La jugabilidad del MVP se centra en la precisión del piloto: controlar correctamente el embrague, acelerar en el momento justo cuando se apaga el semáforo para evitar falsas largadas y administrar una economía virtual que permite comprar mejoras como motores, neumáticos y turbocompresores para optimizar el rendimiento del vehículo.
+
+El modo multijugador se implementa mediante una arquitectura cliente-servidor, garantizando la sincronización de la partida y la integridad de la competencia en tiempo real.
 
 ---
 
 ## 🛠️ Tecnologías Utilizadas
-El proyecto se construye sobre un stack moderno orientado al desarrollo de videojuegos de alto rendimiento en escritorio:
-* **C#**: Lenguaje de programación principal bajo paradigma orientado a objetos.
-* **MonoGame (v3.8.1)**: Framework de desarrollo de videojuegos en 2D para la gestión de gráficos, sonido, entrada y ciclo de juego (*Game Loop*).
-* **.NET 8**: Plataforma de ejecución de software.
-* **Visual Studio**: Entorno de desarrollo integrado (IDE) principal.
+
+El proyecto utiliza un conjunto de tecnologías modernas orientadas al desarrollo de videojuegos de escritorio.
+
+* **C#** – Lenguaje de programación principal.
+* **MonoGame 3.8.1** – Framework para el desarrollo del videojuego, encargado del renderizado, audio, entrada y ciclo principal del juego.
+* **.NET 8** – Plataforma de ejecución.
+* **Visual Studio 2022** – Entorno de desarrollo (IDE).
+* **Sockets TCP/UDP** – Comunicación de red para el modo multijugador.
 
 ---
 
 ## 🚀 Cómo Compilar y Ejecutar
 
-Seguí estos pasos para clonar el repositorio, compilar el código y ejecutar el juego en tu máquina local:
-
 ### Prerrequisitos
-Antes de comenzar, asegurate de tener instalado en tu sistema:
-1. [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-2. [Visual Studio 2022](https://visualstudio.microsoft.com/es/vs/) (con la carga de trabajo **"Desarrollo para el escritorio con .NET"** activa).
-3. [MonoGame MGCB Editor](https://docs.monogame.net/articles/tools/mgcb_editor.html) (suele instalarse automáticamente con las plantillas de MonoGame).
 
-### Pasos
-1. **Clonar el repositorio:**
-   Abre **Git Bash** (o tu terminal preferida) y ejecuta el siguiente comando:
-   ```bash
-   git clone [https://github.com/valenaaaj08/La35Tunning.git](https://github.com/valenaaaj08/La35Tunning.git)
-   cd La35Tunning
+Antes de comenzar, asegurate de tener instalado:
+
+* .NET 8 SDK
+* Visual Studio 2022 con la carga de trabajo Desarrollo para el escritorio con .NET.
+* MonoGame MGCB Editor (generalmente se instala junto con las plantillas de MonoGame).
+
+### Clonar el repositorio
+
+Abrí una terminal y ejecutá:
+
+git clone [https://github.com/TU_USUARIO/La35Tunning.git](https://github.com/TU_USUARIO/La35Tunning.git)
+cd La35Tunning
+
+Abrí una terminal y ejecutá:
+
+> **Nota:** Reemplazá `TU_USUARIO` por el nombre del propietario del repositorio.
+
+### 2. Abrir el proyecto
+
+1. Abrí el archivo `.sln` con **Visual Studio 2022**.
+2. Esperá a que se restauren automáticamente las dependencias de **NuGet**.
+3. Compilá la solución presionado <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>B</kbd>.
+
+### 3. Ejecutar el juego
+
+- Presioná <kbd>F5</kbd> para iniciar el juego en modo depuración.
+- Presioná <kbd>Ctrl</kbd> + <kbd>F5</kbd> para ejecutarlo sin depuración.
+
+---
+
+## 🎮 Características Principales
+
+- 🏁 **Carreras de aceleración:** Desafíos de 400 metros.
+- 🚘 **Autos clásicos:** Vehículos inspirados en leyendas de la calle argentina.
+- 🔧 **Tuning y Mejoras:** Sistema completo de personalización y mejoras de rendimiento.
+- 💰 **Economía Virtual:** Ganá dinero compitiendo y comprá nuevas piezas.
+- 🌐 **Arquitectura Cliente-Servidor:** Sistema robusto para partidas multijugador en red local (LAN).
+- 🖥️ **Interfaz con MonoGame:** Desarrollo gráfico ligero y ágil.
+
+---
+
+## 📌 Estado del Proyecto
+
+🚧 **En desarrollo.**  
+Actualmente se encuentra implementando el MVP (*Producto Mínimo Viable*) para la entrega de la materia **Laboratorio y Programación**.

@@ -1,9 +1,12 @@
-﻿using Microsoft.Xna.Framework;
+﻿using System;
+using La35Tunning.Entidades;
+using La35Tunning.Escenas;
+using La35Tunning.Modelos;
+using La35Tunning.Sistemas;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using La35Tunning.Modelos;
-using La35Tunning.Escenas;
-using System;
+
 
 namespace La35Tunning
 {
@@ -20,6 +23,10 @@ namespace La35Tunning
 
         private SpriteFont _fuente;
 
+        private PantallaCarrera _pantallaCarrera;
+        private Sistemas.Camera2D _camara;
+
+
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
@@ -27,12 +34,17 @@ namespace La35Tunning
             IsMouseVisible = true;
         }
 
+        // Se ejecuta UNA sola vez al arrancar, antes de cargar cualquier imagen/sonido.
+        // Acá va solo lógica y datos que no dependan de Content (texturas, fuentes, etc).
         protected override void Initialize()
         {
             _jugador = new Jugador("Valentin", 5000000m);
             base.Initialize();
         }
 
+        // Se ejecuta UNA sola vez, justo después de Initialize().
+        // Acá SÍ está garantizado que la GraphicsDevice (grafica) está lista, por eso todo lo
+        // que use Content.Load<>() (texturas, fuentes, sonidos) va en este método.
         protected override void LoadContent()
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
@@ -51,7 +63,21 @@ namespace La35Tunning
             {
                 // Inicializamos el menú y la pantalla del taller
                 _menuPrincipal = new MenuPrincipal(Content);
+                Texture2D texturaUnoTemp = Content.Load<Texture2D>("Uno");
+                _jugador.AsignarAuto(new Auto("Fiat Uno", 7.5f, 0.18f, 3800000, texturaUnoTemp));
                 _pantallaTaller = new PantallaTaller(Content, _jugador);
+
+                Texture2D texturaRival = Content.Load<Texture2D>("gol");
+                Auto autoRival = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, texturaRival);
+                _pantallaCarrera = new PantallaCarrera(_jugador.AutoActual, autoRival, new Sistemas.Semaforo(
+                    Content.Load<Texture2D>("semaforo1"), Content.Load<Texture2D>("semaforo2"),
+                    Content.Load<Texture2D>("semaforo3"), Content.Load<Texture2D>("semaforo4"),
+                    Content.Load<Texture2D>("semaforo5"), Content.Load<Texture2D>("semaforoFallida")),
+                    200f, 400f);
+
+               
+                _camara = new Sistemas.Camera2D(GraphicsDevice);
+
             }
             catch (Exception ex)
             {
@@ -99,6 +125,13 @@ namespace La35Tunning
                         _estadoActual = EstadoJuego.MenuPrincipal;
                     }
                     break;
+
+                case EstadoJuego.Carrera:
+                    _pantallaCarrera?.Update(gameTime);
+                    if (Keyboard.GetState().IsKeyDown(Keys.Escape))
+                        _estadoActual = EstadoJuego.MenuPrincipal;
+                    break;
+
             }
 
             base.Update(gameTime);
@@ -108,13 +141,14 @@ namespace La35Tunning
         {
             GraphicsDevice.Clear(Color.Black);
 
-            _spriteBatch.Begin();
+           
 
             if (_fuente != null)
             {
                 switch (_estadoActual)
                 {
                     case EstadoJuego.MenuPrincipal:
+                        _spriteBatch.Begin();
                         if (_menuPrincipal != null)
                         {
                             _menuPrincipal.Draw(_spriteBatch, _fuente, GraphicsDevice);
@@ -122,6 +156,7 @@ namespace La35Tunning
                         break;
 
                     case EstadoJuego.Taller:
+                        _spriteBatch.Begin();
                         if (_pantallaTaller != null)
                         {
                             try
@@ -140,8 +175,23 @@ namespace La35Tunning
                         break;
 
                     case EstadoJuego.Concesionario:
+                        _spriteBatch.Begin();
                         _spriteBatch.DrawString(_fuente, "Pantalla Concesionario (En desarrollo)", new Vector2(200, 200), Color.White);
                         _spriteBatch.DrawString(_fuente, "Presiona [ ESC ] para volver al menu", new Vector2(200, 250), Color.Gray);
+                        break;
+
+                    case EstadoJuego.Carrera:
+                        if (_pantallaCarrera != null && _camara != null)
+                        {
+                            _camara.Update(_jugador.AutoActual.Posicion);
+
+                            _spriteBatch.Begin(transformMatrix: _camara.Transform);
+                            _pantallaCarrera.Draw(_spriteBatch);
+                            _spriteBatch.End();
+
+                            _spriteBatch.Begin();
+                            _pantallaCarrera.DibujarHud(_spriteBatch);
+                        }
                         break;
                 }
             }

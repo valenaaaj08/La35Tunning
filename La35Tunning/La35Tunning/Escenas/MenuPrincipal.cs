@@ -51,7 +51,13 @@ namespace La35Tunning.Escenas
                     SiguienteEstado = EstadoJuego.Concesionario;
                 }
                 // Si agregas lógica para Correr, lo manejás acá
+
+                else if (_rectBotonCorrer.Contains(posicionMouse))
+                {
+                    SiguienteEstado = EstadoJuego.Carrera;
+                }
             }
+
 
             _mouseAnterior = mouseActual;
         }

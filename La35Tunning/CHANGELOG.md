@@ -30,3 +30,23 @@ Este archivo documenta todos los hitos y mejoras significativas en el desarrollo
 ### Mejoras Técnicas
 - **Refactorización de `Game1.cs`**: Limpieza del ciclo de vida del juego (Update/Draw) delegando la lógica a las escenas correspondientes.
 - **Estructuración de Proyectos**: Organización lógica en carpetas (`Entidades`, `Escenas`, `Sistemas`, `Modelos`, `Componentes`).
+
+## [1.1.0] - 2026-08-24
+
+### Bloque 0 — Correcciones de flujo y assets
+- Se asigna un auto inicial (Fiat Uno) al jugador al arrancar, para poder probar el Taller.
+- Se conectó el botón "Correr" del menú principal al nuevo estado `EstadoJuego.Carrera`.
+- Se agregó el manejo de `EstadoJuego.Carrera` en `Game1.Update()` y `Game1.Draw()`, instanciando `PantallaCarrera` con un auto rival de prueba (Gol) y un `Semaforo`.
+- Se corrigió `FuentePrincipal.spritefont`: se agregó un `CharacterRegion` (161-255) para soportar tildes y ñ, que antes rompían el juego con la excepción "Text contains characters that cannot be resolved".
+
+### Bloque 1 — Cámara y escalado de autos (código aplicado, pendiente de confirmar en prueba)
+- Se integró `Camera2D` en `Game1.Draw()` para el estado `Carrera`: los autos se dibujan con la transformación de cámara (siguiendo al auto del jugador) y el semáforo (HUD) se dibuja en un `SpriteBatch` separado, sin transformación de cámara.
+- Se detectó que `Uno.png` (729x342) y `gol.png` (1536x1024) tienen resoluciones muy distintas, y `Auto.Draw()` las dibujaba a tamaño original sin escalar — el auto rival tapaba toda la pantalla, incluido el auto del jugador. Se agregó un escalado por ancho objetivo fijo (`AnchoDeseadoEnPantalla`) en `Auto.cs` para que todos los autos midan lo mismo en pantalla sin importar la resolución de su imagen original.
+- **Sin confirmar todavía por prueba real** si el fix de escalado resuelve el problema visual.
+
+### Pendiente / problemas conocidos
+- No hay ningún fondo ni referencia visual en el mundo del juego durante la carrera (pantalla negra). Como la cámara centra siempre al auto del jugador, esto hace que el movimiento no se perciba aunque la posición del auto sí cambie internamente. Falta agregar una pista/fondo o marcas de distancia.
+- No hay HUD de tiempo/distancia en pantalla durante la carrera.
+- No hay pantalla de resultado visual al terminar la carrera (el resultado solo se imprime en la consola de depuración).
+- Pantalla de Concesionario no implementada (archivo vacío).
+- Sin red/multijugador todavía (Etapas 3-4 de la propuesta).

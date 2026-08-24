@@ -88,5 +88,21 @@ Abrí una terminal y ejecutá:
 🚧 **En desarrollo.**  
 Actualmente se encuentra implementando el MVP (*Producto Mínimo Viable*) para la entrega de la materia **Laboratorio y Programación**.
 
+**Avance actual:** el flujo Menú → Taller → Carrera funciona sin errores
+en modo local (rival con velocidad fija, sin red todavía) y se integró
+una cámara que sigue al auto del jugador. Se corrigió un bug donde el
+auto rival (imagen de mayor resolución) tapaba al auto del jugador en
+pantalla — pendiente de confirmar con una prueba real que quedó
+resuelto. El juego todavía NO es jugable de forma completa: no hay
+ningún fondo/referencia visual en la pista (por eso el movimiento es
+difícil de percibir aunque la cámara sí sigue al auto), falta mostrar
+tiempo/distancia en pantalla, y falta un cartel de resultado al
+terminar la carrera. Pendiente también: pantalla de Concesionario y
+todo el módulo de red multijugador (Etapas 3-4 de la propuesta).
+
+
+**Avance actual:** el flujo Menú → Taller → Carrera ya es jugable de punta a punta en modo local (rival con velocidad fija, sin red todavía). Cámara siguiendo al auto del jugador durante la carrera. Pendiente: HUD de carrera (tiempo/distancia en pantalla), pantalla de resultado visual, pantalla de Concesionario, y todo el módulo de red multijugador (Etapas 3-4 de la propuesta).
+
 ## 📖 Wiki
 **https://github.com/valenaaaj08/La35Tunning/wiki**
+

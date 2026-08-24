@@ -6,11 +6,15 @@
     <Spacing>0</Spacing>
     <UseKerning>true</UseKerning>
     <Style>Regular</Style>
-    <CharacterRegions>
-      <CharacterRegion>
-        <Start>&#32;</Start>
-        <End>&#126;</End>
-      </CharacterRegion>
-    </CharacterRegions>
+	  <CharacterRegions>
+		  <CharacterRegion>
+			  <Start>&#32;</Start>
+			  <End>&#126;</End>
+		  </CharacterRegion>
+		  <CharacterRegion>
+			  <Start>&#161;</Start>
+			  <End>&#255;</End>
+		  </CharacterRegion>
+	  </CharacterRegions>
   </Asset>
 </XnaContent>

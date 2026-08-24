@@ -27,6 +27,9 @@ namespace La35Tunning.Entidades
         private Intercooler _intercoolerActual;
         private Neumatico _neumaticoActual;
 
+
+        private const float AnchoDeseadoEnPantalla = 300f;
+
         public int Precio { get { return _precio; } }
         public string Modelo { get { return _modelo; } }
         public Texture2D TexturaAuto { get { return _texturaAuto; } }
@@ -252,9 +255,13 @@ namespace La35Tunning.Entidades
             }
         }
 
+
+
+
         public override void Draw(SpriteBatch spriteBatch)
         {
-            spriteBatch.Draw(_texturaAuto, _posicion, Color.White);
+            float escala = AnchoDeseadoEnPantalla / _texturaAuto.Width;
+            spriteBatch.Draw(_texturaAuto, _posicion, null, Color.White, 0f, Vector2.Zero, escala, SpriteEffects.None, 0f);
 
             if (_llantaDelantera != null && _llantaTrasera != null)
             {

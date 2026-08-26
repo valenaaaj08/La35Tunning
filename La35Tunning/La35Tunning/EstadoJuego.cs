@@ -5,6 +5,7 @@ namespace La35Tunning
         MenuPrincipal,
         Taller,
         Concesionario,
-        Carrera
+        Carrera,
+        Configuracion
     }
 }

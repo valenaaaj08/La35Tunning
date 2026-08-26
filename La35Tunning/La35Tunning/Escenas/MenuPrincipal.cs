@@ -14,21 +14,25 @@ namespace La35Tunning.Escenas
         private Texture2D _texturaTaller;
         private Texture2D _texturaConcesionario;
         private Texture2D _texturaCorrer;
+        private Texture2D _texturaPixel;
 
         // Rectángulos de posición y tamaño en pantalla para cada botón
-        private Rectangle _rectBotonTaller = new Rectangle(292, 180, 225, 105);
-        private Rectangle _rectBotonConcesionario = new Rectangle(292, 270, 225, 105);
-        private Rectangle _rectBotonCorrer = new Rectangle(292, 360, 225, 105);
+        private Rectangle _rectBotonTaller = new Rectangle(292, 310, 225, 105);
+        private Rectangle _rectBotonConcesionario = new Rectangle(292, 205, 225, 105);
+        private Rectangle _rectBotonCorrer = new Rectangle(292, 100, 225, 105);
+        private Rectangle _rectBotonConfiguracion = new Rectangle(292, 440, 225, 70);
 
         public EstadoJuego? SiguienteEstado { get; private set; }
 
-        public MenuPrincipal(ContentManager content)
+        public MenuPrincipal(ContentManager content, GraphicsDevice graphicsDevice)
         {
             // El menú se encarga de cargar sus propias imágenes
             _fondoMenu = content.Load<Texture2D>("FondoMenu");
             _texturaTaller = content.Load<Texture2D>("Taller");
             _texturaConcesionario = content.Load<Texture2D>("Concesionario");
             _texturaCorrer = content.Load<Texture2D>("Correr");
+            _texturaPixel = new Texture2D(graphicsDevice, 1, 1);
+            _texturaPixel.SetData(new[] { Color.White });
         }
 
         public void Update(GameTime gameTime)
@@ -56,6 +60,10 @@ namespace La35Tunning.Escenas
                 {
                     SiguienteEstado = EstadoJuego.Carrera;
                 }
+                else if (_rectBotonConfiguracion.Contains(posicionMouse))
+                {
+                    SiguienteEstado = EstadoJuego.Configuracion;
+                }
             }
 
 
@@ -79,6 +87,11 @@ namespace La35Tunning.Escenas
 
             if (_texturaCorrer != null)
                 spriteBatch.Draw(_texturaCorrer, _rectBotonCorrer, Color.White);
+
+            spriteBatch.Draw(_texturaPixel, _rectBotonConfiguracion, Color.DarkSlateGray);
+            spriteBatch.Draw(_texturaPixel, new Rectangle(_rectBotonConfiguracion.X, _rectBotonConfiguracion.Y, _rectBotonConfiguracion.Width, 2), Color.Gold);
+            spriteBatch.Draw(_texturaPixel, new Rectangle(_rectBotonConfiguracion.X, _rectBotonConfiguracion.Bottom - 2, _rectBotonConfiguracion.Width, 2), Color.Gold);
+            spriteBatch.DrawString(fuente, "CONFIGURACION", new Vector2(325, 462), Color.White);
         }
     }
 }

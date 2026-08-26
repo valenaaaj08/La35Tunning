@@ -6,6 +6,7 @@ using La35Tunning.Sistemas;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Microsoft.Xna.Framework.Media;
 
 
 
@@ -21,6 +22,7 @@ namespace La35Tunning
         private Jugador _jugador;
         private MenuPrincipal _menuPrincipal;
         private PantallaTaller _pantallaTaller;
+        private PantallaConfiguracion _pantallaConfiguracion;
 
         private SpriteFont _fuente;
 
@@ -28,11 +30,13 @@ namespace La35Tunning
         private Sistemas.Camera2D _camara;
 
         private Texture2D _texturaPixel;
+        private Song _musicaMenu;
 
 
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
+            _graphics.IsFullScreen = true;
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
         }
@@ -52,6 +56,13 @@ namespace La35Tunning
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
+            DisplayMode modoActual = GraphicsDevice.Adapter.CurrentDisplayMode;
+            _graphics.PreferredBackBufferWidth = modoActual.Width;
+            _graphics.PreferredBackBufferHeight = modoActual.Height;
+            _graphics.IsFullScreen = true;
+            _graphics.HardwareModeSwitch = true;
+            _graphics.ApplyChanges();
+
             try
             {
                 // Intentamos cargar la fuente principal
@@ -65,10 +76,15 @@ namespace La35Tunning
             try
             {
                 // Inicializamos el menú y la pantalla del taller
-                _menuPrincipal = new MenuPrincipal(Content);
+                _menuPrincipal = new MenuPrincipal(Content, GraphicsDevice);
+                _musicaMenu = Content.Load<Song>("Sonidos/Fiat 600 - Tussiwarriors");
+                MediaPlayer.IsRepeating = true;
+                MediaPlayer.Volume = 0.7f;
+                MediaPlayer.Play(_musicaMenu);
                 Texture2D texturaUnoTemp = Content.Load<Texture2D>("Uno");
                 _jugador.AsignarAuto(new Auto("Fiat Uno", 7.5f, 0.18f, 3800000, texturaUnoTemp));
                 _pantallaTaller = new PantallaTaller(Content, _jugador);
+                _pantallaConfiguracion = new PantallaConfiguracion(_graphics);
 
                 Texture2D texturaRival = Content.Load<Texture2D>("gol");
                 Auto autoRival = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, texturaRival);
@@ -100,7 +116,7 @@ namespace La35Tunning
                         _menuPrincipal.Update(gameTime);
                         if (_menuPrincipal.SiguienteEstado.HasValue)
                         {
-                            _estadoActual = _menuPrincipal.SiguienteEstado.Value;
+                            CambiarEstado(_menuPrincipal.SiguienteEstado.Value);
                         }
                     }
                     break;
@@ -120,21 +136,27 @@ namespace La35Tunning
 
                     if (Keyboard.GetState().IsKeyDown(Keys.Escape))
                     {
-                        _estadoActual = EstadoJuego.MenuPrincipal;
+                        CambiarEstado(EstadoJuego.MenuPrincipal);
                     }
                     break;
 
                 case EstadoJuego.Concesionario:
                     if (Keyboard.GetState().IsKeyDown(Keys.Escape))
                     {
-                        _estadoActual = EstadoJuego.MenuPrincipal;
+                        CambiarEstado(EstadoJuego.MenuPrincipal);
                     }
                     break;
 
                 case EstadoJuego.Carrera:
                     _pantallaCarrera?.Update(gameTime);
                     if (Keyboard.GetState().IsKeyDown(Keys.Escape))
-                        _estadoActual = EstadoJuego.MenuPrincipal;
+                        CambiarEstado(EstadoJuego.MenuPrincipal);
+                    break;
+
+                case EstadoJuego.Configuracion:
+                    _pantallaConfiguracion?.Update(gameTime);
+                    if (_pantallaConfiguracion != null && _pantallaConfiguracion.DebeVolver)
+                        CambiarEstado(EstadoJuego.MenuPrincipal);
                     break;
 
             }
@@ -198,6 +220,11 @@ namespace La35Tunning
                             _pantallaCarrera.DibujarHud(_spriteBatch, _fuente);
                         }
                         break;
+
+                    case EstadoJuego.Configuracion:
+                        _spriteBatch.Begin();
+                        _pantallaConfiguracion?.Draw(_spriteBatch, _fuente, GraphicsDevice);
+                        break;
                 }
             }
             else
@@ -208,6 +235,24 @@ namespace La35Tunning
             _spriteBatch.End();
 
             base.Draw(gameTime);
+        }
+
+        private void CambiarEstado(EstadoJuego nuevoEstado)
+        {
+            bool estadoActualTieneMusica = _estadoActual == EstadoJuego.MenuPrincipal || _estadoActual == EstadoJuego.Configuracion;
+            bool nuevoEstadoTieneMusica = nuevoEstado == EstadoJuego.MenuPrincipal || nuevoEstado == EstadoJuego.Configuracion;
+
+            if (estadoActualTieneMusica && !nuevoEstadoTieneMusica)
+            {
+                MediaPlayer.Stop();
+            }
+            else if (!estadoActualTieneMusica && nuevoEstadoTieneMusica && _musicaMenu != null)
+            {
+                MediaPlayer.IsRepeating = true;
+                MediaPlayer.Play(_musicaMenu);
+            }
+
+            _estadoActual = nuevoEstado;
         }
     }
 }

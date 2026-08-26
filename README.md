@@ -48,30 +48,15 @@ Antes de comenzar, asegurate de tener instalado:
 * Visual Studio 2022 con la carga de trabajo Desarrollo para el escritorio con .NET.
 * MonoGame MGCB Editor (generalmente se instala junto con las plantillas de MonoGame).
 
-### Clonar el repositorio
+### Comandos de Compilación y Ejecución
 
 Abrí una terminal y ejecutá:
 
-git clone https://github.com/valenaaaj08/La35Tunning.git
-cd La35Tunning
-dotnet restore
-dotnet build
-dotnet run --project La35Tunning/La35Tunning.csproj
-
-Abrí una terminal y ejecutá:
-
-> **Nota:** Reemplazá `TU_USUARIO` por el nombre del propietario del repositorio.
-
-### 2. Abrir el proyecto
-
-1. Abrí el archivo `.slnx` con **Visual Studio 2022**.
-2. Esperá a que se restauren automáticamente las dependencias de **NuGet**.
-3. Compilá la solución presionado <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>B</kbd>.
-
-### 3. Ejecutar el juego
-
-- Presioná <kbd>F5</kbd> para iniciar el juego en modo depuración.
-- Presioná <kbd>Ctrl</kbd> + <kbd>F5</kbd> para ejecutarlo sin depuración.
+1. git clone https://github.com/valenaaaj08/La35Tunning.git.
+2. cd La35Tunning.
+3. dotnet restore.
+4. dotnet build.
+5. dotnet run --project La35Tunning/La35Tunning.csproj.
 
 ---
 

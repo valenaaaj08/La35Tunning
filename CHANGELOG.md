@@ -2,7 +2,7 @@
 
 Este archivo documenta todos los hitos y mejoras significativas en el desarrollo de *La35Tunning*.
 
-## [1.0.0] - 2026-08-14
+## [0.0.0] - 2026-08-14
 
 ### Arquitectura y Sistema Base
 - **Implementación de Arquitectura de Escenas**: Creación de un sistema modular basado en `IPantallas.cs` y clases dedicadas (`MenuPrincipal.cs`, `PantallaCarrera.cs`, `PantallaTaller.cs`, `PantallaConcesionario.cs`).
@@ -31,7 +31,7 @@ Este archivo documenta todos los hitos y mejoras significativas en el desarrollo
 - **Refactorización de `Game1.cs`**: Limpieza del ciclo de vida del juego (Update/Draw) delegando la lógica a las escenas correspondientes.
 - **Estructuración de Proyectos**: Organización lógica en carpetas (`Entidades`, `Escenas`, `Sistemas`, `Modelos`, `Componentes`).
 
-## [1.1.0] - 2026-08-24
+## [0.1.0] - 2026-08-24
 
 ### Bloque 0 — Correcciones de flujo y assets
 - Se asigna un auto inicial (Fiat Uno) al jugador al arrancar, para poder probar el Taller.
@@ -51,7 +51,7 @@ Este archivo documenta todos los hitos y mejoras significativas en el desarrollo
 - Pantalla de Concesionario no implementada (archivo vacío).
 - Sin red/multijugador todavía (Etapas 3-4 de la propuesta).
 
-## [1.2.0] - 2026-08-25
+## [0.2.0] - 2026-08-25
 
 ### Bloque 1 — HUD, resultado visual y economía (confirmado por prueba)
 - `PantallaCarrera.DibujarHud()`: agrega tiempo transcurrido y distancia restante en pantalla durante la carrera.

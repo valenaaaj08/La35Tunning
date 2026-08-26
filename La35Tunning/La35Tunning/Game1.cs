@@ -8,6 +8,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 
 
+
 namespace La35Tunning
 {
     public class Game1 : Game
@@ -25,6 +26,8 @@ namespace La35Tunning
 
         private PantallaCarrera _pantallaCarrera;
         private Sistemas.Camera2D _camara;
+
+        private Texture2D _texturaPixel;
 
 
         public Game1()
@@ -69,13 +72,15 @@ namespace La35Tunning
 
                 Texture2D texturaRival = Content.Load<Texture2D>("gol");
                 Auto autoRival = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, texturaRival);
+                _texturaPixel = new Texture2D(GraphicsDevice, 1, 1);
+                _texturaPixel.SetData(new[] { Color.White });
+
                 _pantallaCarrera = new PantallaCarrera(_jugador.AutoActual, autoRival, new Sistemas.Semaforo(
                     Content.Load<Texture2D>("semaforo1"), Content.Load<Texture2D>("semaforo2"),
                     Content.Load<Texture2D>("semaforo3"), Content.Load<Texture2D>("semaforo4"),
                     Content.Load<Texture2D>("semaforo5"), Content.Load<Texture2D>("semaforoFallida")),
-                    200f, 400f);
+                    200f, 400f, _texturaPixel, _jugador);
 
-               
                 _camara = new Sistemas.Camera2D(GraphicsDevice);
 
             }
@@ -190,7 +195,7 @@ namespace La35Tunning
                             _spriteBatch.End();
 
                             _spriteBatch.Begin();
-                            _pantallaCarrera.DibujarHud(_spriteBatch);
+                            _pantallaCarrera.DibujarHud(_spriteBatch, _fuente);
                         }
                         break;
                 }

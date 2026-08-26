@@ -1,8 +1,10 @@
+using La35Tunning.Entidades;
+using La35Tunning.Modelos;
+using La35Tunning.Sistemas;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using La35Tunning.Entidades;
-using La35Tunning.Sistemas;
+
 
 namespace La35Tunning.Escenas
 {
@@ -28,6 +30,9 @@ namespace La35Tunning.Escenas
         private readonly Auto _autoJugador;
         private readonly Auto _autoRival;
         private readonly Semaforo _semaforo;
+        private readonly Texture2D _texturaPixel;
+        private readonly Modelos.Jugador _jugador;
+        private const decimal PremioPorGanar = 50000;
 
         // Carriles (posición Y fija) para separar visualmente los dos autos.
         private readonly float _carrilJugadorY;
@@ -51,13 +56,15 @@ namespace La35Tunning.Escenas
         // veces en un solo segundo.
         private KeyboardState _tecladoAnterior;
 
-        public PantallaCarrera(Auto autoJugador, Auto autoRival, Semaforo semaforo, float carrilJugadorY, float carrilRivalY)
+        public PantallaCarrera(Auto autoJugador, Auto autoRival, Semaforo semaforo, float carrilJugadorY, float carrilRivalY, Texture2D texturaPixel, Modelos.Jugador jugador)
         {
             _autoJugador = autoJugador;
             _autoRival = autoRival;
             _semaforo = semaforo;
             _carrilJugadorY = carrilJugadorY;
             _carrilRivalY = carrilRivalY;
+            _texturaPixel = texturaPixel;
+            _jugador = jugador;
 
             IniciarNuevaCarrera();
         }
@@ -145,7 +152,15 @@ namespace La35Tunning.Escenas
             if (_autoJugador.LlegoAMeta || _autoRival.LlegoAMeta)
             {
                 Estado = EstadoCarrera.Terminada;
-                MostrarResultado();
+
+                bool ganoJugador = _autoJugador.LlegoAMeta &&
+                    (!_autoRival.LlegoAMeta || _tiempoFinalJugador <= _tiempoFinalRival);
+
+                if (ganoJugador)
+                {
+                    _jugador.SumarDinero(PremioPorGanar);
+                }
+
             }
         }
 
@@ -186,6 +201,12 @@ namespace La35Tunning.Escenas
 
         public void Draw(SpriteBatch spriteBatch)
         {
+
+            for (float x = 100f; x <= 100f + Auto.DistanciaMeta; x += 200f)
+            {
+                spriteBatch.Draw(_texturaPixel, new Rectangle((int)x, 150, 4, 350), Color.Gray);
+            }
+
             // Esto dibuja los elementos que viven "en el mundo" del juego
             // (los autos), o sea que se mueven junto con la cámara.
             _autoJugador.Draw(spriteBatch);
@@ -197,12 +218,23 @@ namespace La35Tunning.Escenas
         // eso es un método aparte: Game1 lo va a dibujar en un SpriteBatch
         // "sin cámara" (sin la Matrix de transformación), mientras que
         // Draw(spriteBatch) de arriba sí se dibuja "con cámara".
-        public void DibujarHud(SpriteBatch spriteBatch)
+        public void DibujarHud(SpriteBatch spriteBatch, SpriteFont fuente)
         {
             spriteBatch.Draw(_semaforo.TexturaActual(), _posicionSemaforo, Color.White);
 
-            // TODO: acá va a ir el resto del HUD (cronómetro, distancia,
-            // cartel de resultado) apenas tengamos un SpriteFont cargado.
+            if (Estado == EstadoCarrera.Terminada)
+            {
+                string mensaje;
+                if (_autoJugador.Descalificado)
+                    mensaje = "Salida anticipada - Ganó el rival";
+                else if (_autoJugador.LlegoAMeta && (!_autoRival.LlegoAMeta || _tiempoFinalJugador <= _tiempoFinalRival))
+                    mensaje = $"¡Ganaste! Tiempo: {_tiempoFinalJugador:0.000}s";
+                else
+                    mensaje = $"Ganó el rival. Tiempo: {_tiempoFinalRival:0.000}s";
+
+                spriteBatch.DrawString(fuente, mensaje, new Vector2(250, 200), Color.Yellow);
+                spriteBatch.DrawString(fuente, "Presioná [ENTER] para reintentar", new Vector2(250, 230), Color.Gray);
+            }
         }
     }
 }

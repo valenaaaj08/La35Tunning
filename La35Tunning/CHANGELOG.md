@@ -50,3 +50,21 @@ Este archivo documenta todos los hitos y mejoras significativas en el desarrollo
 - No hay pantalla de resultado visual al terminar la carrera (el resultado solo se imprime en la consola de depuración).
 - Pantalla de Concesionario no implementada (archivo vacío).
 - Sin red/multijugador todavía (Etapas 3-4 de la propuesta).
+
+## [1.2.0] - 2026-08-25
+
+### Bloque 1 — HUD, resultado visual y economía (confirmado por prueba)
+- `PantallaCarrera.DibujarHud()`: agrega tiempo transcurrido y distancia restante en pantalla durante la carrera.
+- `PantallaCarrera.Draw()`: agrega marcas de distancia cada 200 unidades (referencia visual temporal de movimiento, mientras no haya un fondo/pista real — ver sección "Pendiente").
+- Cartel de resultado visible al terminar la carrera (ganaste / ganó el rival / descalificado por salida anticipada), con opción de reintentar con [ENTER]. Reemplaza el `MostrarResultado()` anterior que solo escribía en la consola de depuración.
+- `PantallaCarrera` ahora recibe al `Jugador` y le suma un premio en dinero ($5.000) si gana la carrera.
+- Se corrigió `PantallaTaller.Draw()`: el texto de "Dinero" y "Auto" dependía incorrectamente de que existiera `TexturaTaller` (imagen de frente del auto), que en el auto de prueba es `null` — antes de este fix, la plata nunca se veía en pantalla aunque sí se sumara por dentro.
+- Ajustado el balance de prueba entre el auto del jugador y el rival de prueba, para que la carrera sea ganable.
+
+### Bloque 1 — Economía del Taller (aplicado, pendiente de confirmar en prueba)
+- `Taller.InstalarPieza()` ahora recibe al `Jugador` y descuenta el costo real de la pieza (antes se instalaba gratis). Si no alcanza la plata, no instala nada.
+
+### Pendiente / problemas conocidos
+- No hay fondo/pista real (las marcas de distancia son un parche temporal hasta tener el asset de fondo).
+- Pantalla de Concesionario no implementada (archivo vacío).
+- Sin red/multijugador todavía (Etapas 3-4 de la propuesta).

@@ -38,7 +38,7 @@ namespace La35Tunning.Escenas
                 // Ejemplo: Presionando Enter instala la primera pieza al auto actual
                 if (teclado.IsKeyDown(Keys.Enter))
                 {
-                    _taller.InstalarPieza(_jugador.AutoActual, 0); 
+                    _taller.InstalarPieza(_jugador.AutoActual, 0, _jugador); 
                 }
             }
         }
@@ -53,14 +53,18 @@ namespace La35Tunning.Escenas
                 spriteBatch.Draw(_fondoTaller, Vector2.Zero, Color.White);
             }
 
-            // 2. Dibujar el auto actual de frente (usando TexturaTaller)
-            if (_jugador.AutoActual != null && _jugador.AutoActual.TexturaTaller != null)
+            // 2. Dibujar el auto actual de frente (usando TexturaTaller), si existe una imagen para eso
+            if (_jugador.AutoActual != null)
             {
-                spriteBatch.Draw(_jugador.AutoActual.TexturaTaller, _posicionDibujoAuto, Color.White);
-                
-                // Mostrar información del auto y dinero actual
+                if (_jugador.AutoActual.TexturaTaller != null)
+                {
+                    spriteBatch.Draw(_jugador.AutoActual.TexturaTaller, _posicionDibujoAuto, Color.White);
+                }
+
+                // La info del auto y la plata se muestran SIEMPRE que haya un auto asignado,
+                // tenga o no imagen de "vista de frente" cargada.
                 spriteBatch.DrawString(fuente, $"Auto: {_jugador.AutoActual.Modelo}", new Vector2(50, 50), Color.White);
-                spriteBatch.DrawString(fuente, $"Dinero: ${_jugador.Dinero}", new Vector2(50, 80), Color.Green);
+                spriteBatch.DrawString(fuente, $"Dinero: ${_jugador.Dinero}", new Vector2(50, 80), Color.White);
             }
             else
             {

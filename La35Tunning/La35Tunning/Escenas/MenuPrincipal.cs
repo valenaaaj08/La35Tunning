@@ -16,9 +16,9 @@ namespace La35Tunning.Escenas
         private Texture2D _texturaCorrer;
 
         // Rectángulos de posición y tamaño en pantalla para cada botón
-        private Rectangle _rectBotonTaller = new Rectangle(280, 200, 240, 60);
-        private Rectangle _rectBotonConcesionario = new Rectangle(280, 280, 240, 60);
-        private Rectangle _rectBotonCorrer = new Rectangle(280, 360, 240, 60);
+        private Rectangle _rectBotonTaller = new Rectangle(292, 180, 225, 105);
+        private Rectangle _rectBotonConcesionario = new Rectangle(292, 270, 225, 105);
+        private Rectangle _rectBotonCorrer = new Rectangle(292, 360, 225, 105);
 
         public EstadoJuego? SiguienteEstado { get; private set; }
 

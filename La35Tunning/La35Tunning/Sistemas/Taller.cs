@@ -47,15 +47,19 @@ namespace La35Tunning.Sistemas
         public List<Componente> CatalogoPiezas { get { return _catalogoPiezas; } }
         public List<Texture2D> CatalogoLlantas { get { return _catalogoLlantas; } }
 
-        public bool InstalarPieza(Auto auto, int indicePieza)
+        public bool InstalarPieza(Auto auto, int indicePieza, Jugador jugador)
         {
-            if (auto == null)
+            if (auto == null || jugador == null)
                 return false;
 
             if (indicePieza < 0 || indicePieza >= _catalogoPiezas.Count)
                 return false;
 
             Componente piezaSeleccionada = _catalogoPiezas[indicePieza];
+
+            // Si no le alcanza la plata, no se instala nada.
+            if (!jugador.RestarDinero(piezaSeleccionada.Costo))
+                return false;
 
             // Instala la pieza reemplazando la anterior de su mismo tipo en el auto
             auto.InstalarPieza(piezaSeleccionada);

@@ -52,8 +52,11 @@ Antes de comenzar, asegurate de tener instalado:
 
 Abrí una terminal y ejecutá:
 
-git clone [https://github.com/TU_USUARIO/La35Tunning.git](https://github.com/TU_USUARIO/La35Tunning.git)
+git clone https://github.com/valenaaaj08/La35Tunning.git
 cd La35Tunning
+dotnet restore
+dotnet build
+dotnet run --project La35Tunning/La35Tunning.csproj
 
 Abrí una terminal y ejecutá:
 
@@ -61,7 +64,7 @@ Abrí una terminal y ejecutá:
 
 ### 2. Abrir el proyecto
 
-1. Abrí el archivo `.sln` con **Visual Studio 2022**.
+1. Abrí el archivo `.slnx` con **Visual Studio 2022**.
 2. Esperá a que se restauren automáticamente las dependencias de **NuGet**.
 3. Compilá la solución presionado <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>B</kbd>.
 

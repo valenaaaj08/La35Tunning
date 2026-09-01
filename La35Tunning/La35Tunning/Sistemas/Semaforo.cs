@@ -148,5 +148,22 @@ namespace La35Tunning.Sistemas
                 default: return _texturaLuz1;
             }
         }
+
+        // Texto de cuenta regresiva para mostrar junto al semáforo.
+        public string TextoActual()
+        {
+            switch (Estado)
+            {
+                case EstadoSemaforo.Luz1: return "3";
+                case EstadoSemaforo.Luz2: return "2";
+                case EstadoSemaforo.Luz3: return "1";
+                case EstadoSemaforo.Luz4: return "";
+                case EstadoSemaforo.Verde: return "¡ARRANCAR!";
+                case EstadoSemaforo.Fallida: return "SALIDA ANTICIPADA";
+                default: return "";
+            }
+        }
+
+
     }
 }

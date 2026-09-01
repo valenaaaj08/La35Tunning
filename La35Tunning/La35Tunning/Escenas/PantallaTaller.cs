@@ -13,7 +13,10 @@ namespace La35Tunning.Escenas
     {
         private Taller _taller;
         private Jugador _jugador;
-        
+
+        private int _indiceSeleccionado = 0;
+        private KeyboardState _tecladoAnterior;
+
         // Textura de fondo del taller
         private Texture2D _fondoTaller;
 
@@ -29,18 +32,27 @@ namespace La35Tunning.Escenas
             _fondoTaller = content.Load<Texture2D>("FondoTaller");
         }
 
-        public void Update(GameTime gameTime)
+                public void Update(GameTime gameTime)
         {
             var teclado = Keyboard.GetState();
 
             if (_jugador.AutoActual != null)
             {
-                // Ejemplo: Presionando Enter instala la primera pieza al auto actual
-                if (teclado.IsKeyDown(Keys.Enter))
+                if (teclado.IsKeyDown(Keys.Down) && _tecladoAnterior.IsKeyUp(Keys.Down))
                 {
-                    _taller.InstalarPieza(_jugador.AutoActual, 0, _jugador); 
+                    _indiceSeleccionado = (int)MathHelper.Clamp(_indiceSeleccionado + 1, 0, _taller.CatalogoPiezas.Count - 1);
+                }
+                else if (teclado.IsKeyDown(Keys.Up) && _tecladoAnterior.IsKeyUp(Keys.Up))
+                {
+                    _indiceSeleccionado = (int)MathHelper.Clamp(_indiceSeleccionado - 1, 0, _taller.CatalogoPiezas.Count - 1);
+                }
+                else if (teclado.IsKeyDown(Keys.Enter) && _tecladoAnterior.IsKeyUp(Keys.Enter))
+                {
+                    _taller.InstalarPieza(_jugador.AutoActual, _indiceSeleccionado, _jugador);
                 }
             }
+
+            _tecladoAnterior = teclado;
         }
 
         public void Draw(SpriteBatch spriteBatch, SpriteFont fuente)
@@ -80,9 +92,14 @@ namespace La35Tunning.Escenas
             {
                 Componente pieza = _taller.CatalogoPiezas[i];
                 string textoPieza = $"{i + 1}. {pieza.Nombre} - ${pieza.Costo}";
-                spriteBatch.DrawString(fuente, textoPieza, posicionTexto, Color.White);
+                Color colorTexto = (i == _indiceSeleccionado) ? Color.Yellow : Color.White;
+                spriteBatch.DrawString(fuente, textoPieza, posicionTexto, colorTexto);
                 posicionTexto.Y += 25;
             }
+
+            posicionTexto.Y += 15;
+            spriteBatch.DrawString(fuente, "Flechas ARRIBA/ABAJO para elegir, ENTER para instalar", posicionTexto, Color.Gray);
+
         }
     }
 }

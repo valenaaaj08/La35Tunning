@@ -14,13 +14,14 @@ namespace La35Tunning.Escenas
         private Texture2D _texturaTaller;
         private Texture2D _texturaConcesionario;
         private Texture2D _texturaCorrer;
+        private Texture2D _texturaLogoConfiguracion;
         private Texture2D _texturaPixel;
 
         // Rectángulos de posición y tamaño en pantalla para cada botón
         private Rectangle _rectBotonTaller = new Rectangle(292, 310, 225, 105);
         private Rectangle _rectBotonConcesionario = new Rectangle(292, 205, 225, 105);
         private Rectangle _rectBotonCorrer = new Rectangle(292, 100, 225, 105);
-        private Rectangle _rectBotonConfiguracion = new Rectangle(292, 440, 225, 70);
+        private Rectangle _rectBotonConfiguracion = new Rectangle(20, 20, 64, 64);
 
         public EstadoJuego? SiguienteEstado { get; private set; }
 
@@ -33,6 +34,7 @@ namespace La35Tunning.Escenas
             _texturaCorrer = content.Load<Texture2D>("Correr");
             _texturaPixel = new Texture2D(graphicsDevice, 1, 1);
             _texturaPixel.SetData(new[] { Color.White });
+            _texturaLogoConfiguracion = content.Load<Texture2D>("LogoConfiguracion");
         }
 
         public void Update(GameTime gameTime)
@@ -88,10 +90,8 @@ namespace La35Tunning.Escenas
             if (_texturaCorrer != null)
                 spriteBatch.Draw(_texturaCorrer, _rectBotonCorrer, Color.White);
 
-            spriteBatch.Draw(_texturaPixel, _rectBotonConfiguracion, Color.DarkSlateGray);
-            spriteBatch.Draw(_texturaPixel, new Rectangle(_rectBotonConfiguracion.X, _rectBotonConfiguracion.Y, _rectBotonConfiguracion.Width, 2), Color.Gold);
-            spriteBatch.Draw(_texturaPixel, new Rectangle(_rectBotonConfiguracion.X, _rectBotonConfiguracion.Bottom - 2, _rectBotonConfiguracion.Width, 2), Color.Gold);
-            spriteBatch.DrawString(fuente, "CONFIGURACION", new Vector2(325, 462), Color.White);
+            if (_texturaLogoConfiguracion != null)
+                spriteBatch.Draw(_texturaLogoConfiguracion, _rectBotonConfiguracion, Color.White);
         }
     }
 }

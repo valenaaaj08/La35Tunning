@@ -252,6 +252,11 @@ namespace La35Tunning
                 MediaPlayer.Play(_musicaMenu);
             }
 
+                        if (nuevoEstado == EstadoJuego.Configuracion)
+            {
+                _pantallaConfiguracion?.Reiniciar();
+            }
+
             _estadoActual = nuevoEstado;
         }
     }

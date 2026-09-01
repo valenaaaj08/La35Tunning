@@ -35,6 +35,15 @@ namespace La35Tunning.Escenas
             };
         }
 
+
+        // Se llama cada vez que se entra a esta pantalla, para dejarla
+        // lista de nuevo (el mismo patrón que Semaforo.Reiniciar()).
+        public void Reiniciar()
+        {
+            DebeVolver = false;
+            _entradaInicializada = false;
+        }
+
         public void Update(GameTime gameTime)
         {
             MouseState mouseActual = Mouse.GetState();

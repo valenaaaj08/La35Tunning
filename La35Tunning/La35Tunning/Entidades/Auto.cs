@@ -261,7 +261,7 @@ namespace La35Tunning.Entidades
         public override void Draw(SpriteBatch spriteBatch)
         {
             float escala = AnchoDeseadoEnPantalla / _texturaAuto.Width;
-            spriteBatch.Draw(_texturaAuto, _posicion, null, Color.White, 0f, Vector2.Zero, escala, SpriteEffects.None, 0f);
+            spriteBatch.Draw(_texturaAuto, _posicion, null, Color.White, 0f, Vector2.Zero, escala, SpriteEffects.FlipHorizontally, 0f);
 
             if (_llantaDelantera != null && _llantaTrasera != null)
             {

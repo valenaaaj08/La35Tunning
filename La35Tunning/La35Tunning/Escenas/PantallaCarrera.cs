@@ -220,7 +220,27 @@ namespace La35Tunning.Escenas
         // Draw(spriteBatch) de arriba sí se dibuja "con cámara".
         public void DibujarHud(SpriteBatch spriteBatch, SpriteFont fuente)
         {
-            spriteBatch.Draw(_semaforo.TexturaActual(), _posicionSemaforo, Color.White);
+            Texture2D texturaSemaforo = _semaforo.TexturaActual();
+            spriteBatch.Draw(texturaSemaforo, _posicionSemaforo, Color.White);
+
+            string textoSemaforo = _semaforo.TextoActual();
+            if (!string.IsNullOrEmpty(textoSemaforo))
+            {
+                const float escalaTexto = 2f;
+                Vector2 medidaTexto = fuente.MeasureString(textoSemaforo) * escalaTexto;
+                Vector2 posicionTexto = new Vector2(
+                    _posicionSemaforo.X + texturaSemaforo.Width / 2f - medidaTexto.X / 2f,
+                    _posicionSemaforo.Y + texturaSemaforo.Height + 20f);
+
+                spriteBatch.DrawString(fuente, textoSemaforo, posicionTexto, Color.Yellow, 0f, Vector2.Zero, escalaTexto, SpriteEffects.None, 0f);
+            }
+
+            if (Estado != EstadoCarrera.Terminada)
+            {
+                float distanciaRestante = (1f - _autoJugador.ProgresoCarrera) * Auto.DistanciaMeta;
+                spriteBatch.DrawString(fuente, $"Tiempo: {_cronometro:0.00}s", new Vector2(50, 20), Color.White);
+                spriteBatch.DrawString(fuente, $"Distancia restante: {distanciaRestante:0}m", new Vector2(50, 50), Color.White);
+            }
 
             if (Estado == EstadoCarrera.Terminada)
             {

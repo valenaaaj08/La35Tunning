@@ -23,6 +23,8 @@ namespace La35Tunning
         private MenuPrincipal _menuPrincipal;
         private PantallaTaller _pantallaTaller;
         private PantallaConfiguracion _pantallaConfiguracion;
+        private Sistemas.Concesionario _concesionarioSistema;
+        private PantallaConcesionario _pantallaConcesionario;
 
         private SpriteFont _fuente;
 
@@ -83,8 +85,13 @@ namespace La35Tunning
                 MediaPlayer.Play(_musicaMenu);
                 Texture2D texturaUnoTemp = Content.Load<Texture2D>("Uno");
                 _jugador.AsignarAuto(new Auto("Fiat Uno", 7.5f, 0.18f, 3800000, texturaUnoTemp));
+                _jugador.AgregarAutoComprado(_jugador.AutoActual); // el auto inicial también forma parte del garage
                 _pantallaTaller = new PantallaTaller(Content, _jugador);
                 _pantallaConfiguracion = new PantallaConfiguracion(_graphics);
+
+                Texture2D texturaLlantaDefault = Content.Load<Texture2D>("llantaDefault");
+                _concesionarioSistema = new Sistemas.Concesionario(Content, texturaLlantaDefault);
+                _pantallaConcesionario = new PantallaConcesionario(_concesionarioSistema, _jugador, GraphicsDevice);
 
                 Texture2D texturaRival = Content.Load<Texture2D>("gol");
                 Auto autoRival = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, texturaRival);
@@ -141,6 +148,7 @@ namespace La35Tunning
                     break;
 
                 case EstadoJuego.Concesionario:
+                    _pantallaConcesionario?.Update(gameTime);
                     if (Keyboard.GetState().IsKeyDown(Keys.Escape))
                     {
                         CambiarEstado(EstadoJuego.MenuPrincipal);
@@ -168,7 +176,7 @@ namespace La35Tunning
         {
             GraphicsDevice.Clear(Color.Black);
 
-           
+
 
             if (_fuente != null)
             {
@@ -203,8 +211,7 @@ namespace La35Tunning
 
                     case EstadoJuego.Concesionario:
                         _spriteBatch.Begin();
-                        _spriteBatch.DrawString(_fuente, "Pantalla Concesionario (En desarrollo)", new Vector2(200, 200), Color.White);
-                        _spriteBatch.DrawString(_fuente, "Presiona [ ESC ] para volver al menu", new Vector2(200, 250), Color.Gray);
+                        _pantallaConcesionario?.Draw(_spriteBatch, _fuente, GraphicsDevice);
                         break;
 
                     case EstadoJuego.Carrera:
@@ -252,9 +259,9 @@ namespace La35Tunning
                 MediaPlayer.Play(_musicaMenu);
             }
 
-                        if (nuevoEstado == EstadoJuego.Configuracion)
+            if (nuevoEstado == EstadoJuego.Concesionario)
             {
-                _pantallaConfiguracion?.Reiniciar();
+                _pantallaConcesionario?.Reiniciar();
             }
 
             _estadoActual = nuevoEstado;

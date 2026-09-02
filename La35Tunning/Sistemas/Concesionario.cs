@@ -1,9 +1,8 @@
 using System.Collections.Generic;
-using System.Linq;
-using La35Tunning.Entidades;
-using La35Tunning.Modelos;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using La35Tunning.Entidades;
+using La35Tunning.Modelos;
 
 namespace La35Tunning.Sistemas
 {
@@ -45,41 +44,42 @@ namespace La35Tunning.Sistemas
             return _catalogo;
         }
 
-        // 1. Comprar un auto del catálogo. Devuelve un mensaje para mostrarle al jugador
-        // (así la pantalla no tiene que andar armando los textos de éxito/error, se los pedimos acá).
-        public string ComprarAuto(Jugador jugador, int indiceAuto)
+        // 1. Comprar un auto nuevo del catálogo
+        public bool ComprarAuto(Jugador jugador, int indiceAuto)
         {
             if (indiceAuto < 0 || indiceAuto >= _catalogo.Count)
-                return "Ese auto ya no está disponible.";
+                return false;
 
             Auto autoAComprar = _catalogo[indiceAuto];
 
-            if (jugador.Dinero < autoAComprar.Precio)
-                return "No te alcanza la plata para este auto.";
+            if (jugador.Dinero >= autoAComprar.Precio)
+            {
+                jugador.RestarDinero(autoAComprar.Precio);
+                jugador.AsignarAuto(autoAComprar);
+                return true;
+            }
 
-            jugador.RestarDinero(autoAComprar.Precio);
-            jugador.AgregarAutoComprado(autoAComprar);
-
-            // Una vez comprado, sale de la vidriera: cada auto del catálogo se vende una sola vez.
-            _catalogo.RemoveAt(indiceAuto);
-
-            return $"Compraste el {autoAComprar.Modelo}.";
+            return false;
         }
 
-        // 2. Vender un auto puntual del garage del jugador (no necesariamente el que tiene equipado).
-        // NOTA: por ahora solo se paga el 50% del precio base del auto, sin sumar el valor de las
-        // piezas instaladas. Es una limitación conocida, documentada en el README/Changelog.
-        public string VenderAuto(Jugador jugador, Auto auto)
+        // 2. Vender el auto actual del jugador al concesionario (50% del valor base + modificaciones)
+        public bool VenderAutoAlConcesionario(Jugador jugador)
         {
-            if (auto == null || !jugador.AutosComprados.Contains(auto))
-                return "Ese auto no está en tu garage.";
+            if (jugador.AutoActual == null)
+                return false;
 
-            decimal dineroGanado = auto.Precio * 0.5m;
+            // Calculamos el valor de tasación: 50% del precio base del auto actual
+            decimal valorBaseReventa = jugador.AutoActual.Precio * 0.5m;
 
+            // Si querés sumar el valor estimado de las modificaciones (por ejemplo, si cada mejora suma un extra)
+            // Podrías calcularlo o sumarlo acá. Por ahora toma la base del vehículo.
+            decimal dineroGanado = valorBaseReventa;
+
+            // Sumamos el dinero al jugador y le quitamos el auto actual
             jugador.SumarDinero(dineroGanado);
-            jugador.QuitarAutoComprado(auto);
+            jugador.AsignarAuto(null); // O el método que uses para desvincular el auto
 
-            return $"Vendiste el {auto.Modelo} por ${dineroGanado}.";
+            return true;
         }
     }
 }

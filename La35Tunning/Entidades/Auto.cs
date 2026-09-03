@@ -26,9 +26,14 @@ namespace La35Tunning.Entidades
         private Transmision _transmisionActual;
         private Intercooler _intercoolerActual;
         private Neumatico _neumaticoActual;
+        private readonly HashSet<Componente> _piezasCompradas = new HashSet<Componente>();
 
 
         private const float AnchoDeseadoEnPantalla = 300f;
+        private const float DiametroLlantaEnPantalla = 62f;
+        private const float PosicionLlantaDelanteraX = 0.24f;
+        private const float PosicionLlantaTraseraX = 0.82f;
+        private const float PosicionLlantasY = 0.64f;
 
         public int Precio { get { return _precio; } }
         public string Modelo { get { return _modelo; } }
@@ -107,6 +112,9 @@ namespace La35Tunning.Entidades
 
         public void InstalarPieza(Componente nuevaPieza)
         {
+            if (nuevaPieza == null || _piezasCompradas.Contains(nuevaPieza))
+                return;
+
             if (nuevaPieza is Motor motor)
             {
                 _motorActual = motor;
@@ -127,6 +135,13 @@ namespace La35Tunning.Entidades
             {
                 _neumaticoActual = neumatico;
             }
+
+            _piezasCompradas.Add(nuevaPieza);
+        }
+
+        public bool TienePiezaComprada(Componente pieza)
+        {
+            return pieza != null && _piezasCompradas.Contains(pieza);
         }
 
         public void MostrarFichaTecnica()
@@ -265,16 +280,21 @@ namespace La35Tunning.Entidades
 
             if (_llantaDelantera != null && _llantaTrasera != null)
             {
-                Vector2 posicionRuedaDelantera = _posicion + new Vector2(360, 730);
-                Vector2 posicionRuedaTrasera = _posicion + new Vector2(1330, 730);
+                Vector2 posicionRuedaDelantera = _posicion + new Vector2(
+                    _texturaAuto.Width * PosicionLlantaDelanteraX,
+                    _texturaAuto.Height * PosicionLlantasY) * escala;
+                Vector2 posicionRuedaTrasera = _posicion + new Vector2(
+                    _texturaAuto.Width * PosicionLlantaTraseraX,
+                    _texturaAuto.Height * PosicionLlantasY) * escala;
 
-                float escalaLlanta = 1f;
+                float escalaLlantaDelantera = DiametroLlantaEnPantalla / _llantaDelantera.Width;
+                float escalaLlantaTrasera = DiametroLlantaEnPantalla / _llantaTrasera.Width;
 
                 Vector2 origenDelantera = new Vector2(_llantaDelantera.Width / 2f, _llantaDelantera.Height / 2f);
                 Vector2 origenTrasera = new Vector2(_llantaTrasera.Width / 2f, _llantaTrasera.Height / 2f);
 
-                spriteBatch.Draw(_llantaDelantera, posicionRuedaDelantera, null, Color.White, AnguloLlanta, origenDelantera, escalaLlanta, SpriteEffects.None, 0f);
-                spriteBatch.Draw(_llantaTrasera, posicionRuedaTrasera, null, Color.White, AnguloLlanta, origenTrasera, escalaLlanta, SpriteEffects.None, 0f);
+                spriteBatch.Draw(_llantaDelantera, posicionRuedaDelantera, null, Color.White, AnguloLlanta, origenDelantera, escalaLlantaDelantera, SpriteEffects.None, 0f);
+                spriteBatch.Draw(_llantaTrasera, posicionRuedaTrasera, null, Color.White, AnguloLlanta, origenTrasera, escalaLlantaTrasera, SpriteEffects.None, 0f);
             }
         }
     }

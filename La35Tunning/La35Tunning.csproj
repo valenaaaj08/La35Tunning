@@ -13,6 +13,9 @@
   <ItemGroup>
     <None Remove="Icon.ico" />
     <None Remove="Icon.bmp" />
+    <Compile Remove="La35Tunning\obj\**" />
+    <None Remove="La35Tunning\obj\**" />
+    <EmbeddedResource Remove="La35Tunning\obj\**" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Icon.ico">

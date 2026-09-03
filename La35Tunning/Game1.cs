@@ -38,7 +38,9 @@ namespace La35Tunning
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
-            _graphics.IsFullScreen = true;
+            _graphics.PreferredBackBufferWidth = 800;
+            _graphics.PreferredBackBufferHeight = 600;
+            _graphics.IsFullScreen = false;
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
         }
@@ -58,11 +60,7 @@ namespace La35Tunning
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            DisplayMode modoActual = GraphicsDevice.Adapter.CurrentDisplayMode;
-            _graphics.PreferredBackBufferWidth = modoActual.Width;
-            _graphics.PreferredBackBufferHeight = modoActual.Height;
-            _graphics.IsFullScreen = true;
-            _graphics.HardwareModeSwitch = true;
+            _graphics.HardwareModeSwitch = false;
             _graphics.ApplyChanges();
 
             try
@@ -90,11 +88,13 @@ namespace La35Tunning
                 _pantallaConfiguracion = new PantallaConfiguracion(_graphics);
 
                 Texture2D texturaLlantaDefault = Content.Load<Texture2D>("llantaDefault");
+                _jugador.AutoActual.InstalarLlantas(texturaLlantaDefault, texturaLlantaDefault);
                 _concesionarioSistema = new Sistemas.Concesionario(Content, texturaLlantaDefault);
                 _pantallaConcesionario = new PantallaConcesionario(_concesionarioSistema, _jugador, GraphicsDevice);
 
                 Texture2D texturaRival = Content.Load<Texture2D>("gol");
                 Auto autoRival = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, texturaRival);
+                autoRival.InstalarLlantas(texturaLlantaDefault, texturaLlantaDefault);
                 _texturaPixel = new Texture2D(GraphicsDevice, 1, 1);
                 _texturaPixel.SetData(new[] { Color.White });
 
@@ -246,6 +246,16 @@ namespace La35Tunning
 
         private void CambiarEstado(EstadoJuego nuevoEstado)
         {
+            if (nuevoEstado == EstadoJuego.Carrera && _jugador.AutoActual != null && _pantallaCarrera != null)
+            {
+                _pantallaCarrera.CambiarAutoJugador(_jugador.AutoActual);
+            }
+
+            if (nuevoEstado == EstadoJuego.Configuracion)
+            {
+                _pantallaConfiguracion?.Reiniciar();
+            }
+
             bool estadoActualTieneMusica = _estadoActual == EstadoJuego.MenuPrincipal || _estadoActual == EstadoJuego.Configuracion;
             bool nuevoEstadoTieneMusica = nuevoEstado == EstadoJuego.MenuPrincipal || nuevoEstado == EstadoJuego.Configuracion;
 

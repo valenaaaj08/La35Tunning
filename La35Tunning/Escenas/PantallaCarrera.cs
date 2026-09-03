@@ -27,7 +27,7 @@ namespace La35Tunning.Escenas
     // se va a mover con la posición que mande el servidor o la IA.
     public class PantallaCarrera : IPantallas
     {
-        private readonly Auto _autoJugador;
+        private Auto _autoJugador;
         private readonly Auto _autoRival;
         private readonly Semaforo _semaforo;
         private readonly Texture2D _texturaPixel;
@@ -86,6 +86,15 @@ namespace La35Tunning.Escenas
             _tiempoFinalRival = 0f;
 
             Estado = EstadoCarrera.Largada;
+        }
+
+        public void CambiarAutoJugador(Auto autoJugador)
+        {
+            if (autoJugador == null || ReferenceEquals(_autoJugador, autoJugador))
+                return;
+
+            _autoJugador = autoJugador;
+            IniciarNuevaCarrera();
         }
 
         public void Update(GameTime gameTime)

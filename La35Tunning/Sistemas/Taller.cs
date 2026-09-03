@@ -57,6 +57,9 @@ namespace La35Tunning.Sistemas
 
             Componente piezaSeleccionada = _catalogoPiezas[indicePieza];
 
+            if (auto.TienePiezaComprada(piezaSeleccionada))
+                return false;
+
             // Si no le alcanza la plata, no se instala nada.
             if (!jugador.RestarDinero(piezaSeleccionada.Costo))
                 return false;

@@ -2,6 +2,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
 
 namespace La35Tunning.Escenas
 {
@@ -17,6 +18,7 @@ namespace La35Tunning.Escenas
         private Texture2D _texturaPixel;
         private Texture2D _texturaEngranaje;
         private bool _mouseSobreConfiguracion;
+        private readonly GraphicsDevice _graphicsDevice;
 
         // Rectángulos de posición y tamaño en pantalla para cada botón
         private Rectangle _rectBotonTaller = new Rectangle(292, 310, 225, 105);
@@ -28,6 +30,7 @@ namespace La35Tunning.Escenas
 
         public MenuPrincipal(ContentManager content, GraphicsDevice graphicsDevice)
         {
+            _graphicsDevice = graphicsDevice;
             // El menú se encarga de cargar sus propias imágenes
             _fondoMenu = content.Load<Texture2D>("FondoMenu");
             _texturaTaller = content.Load<Texture2D>("Taller");
@@ -46,6 +49,7 @@ namespace La35Tunning.Escenas
 
         public void Update(GameTime gameTime)
         {
+            ActualizarRectangulos();
             MouseState mouseActual = Mouse.GetState();
             bool hizoClic = (mouseActual.LeftButton == ButtonState.Pressed && _mouseAnterior.LeftButton == ButtonState.Released);
 
@@ -83,6 +87,7 @@ namespace La35Tunning.Escenas
 
         public void Draw(SpriteBatch spriteBatch, SpriteFont fuente, GraphicsDevice graphicsDevice)
         {
+            ActualizarRectangulos();
             // 1. Dibujar fondo estirado a toda la pantalla
             if (_fondoMenu != null)
             {
@@ -102,6 +107,15 @@ namespace La35Tunning.Escenas
             // Ícono de configuración arriba a la derecha. Se pone dorado cuando el mouse pasa por encima.
             Color colorEngranaje = _mouseSobreConfiguracion ? Color.Gold : Color.White;
             spriteBatch.Draw(_texturaEngranaje, _rectBotonConfiguracion, colorEngranaje);
+        }
+
+        private void ActualizarRectangulos()
+        {
+            int desplazamientoX = Math.Max(0, (_graphicsDevice.Viewport.Width - 800) / 2);
+            _rectBotonTaller.X = 292 + desplazamientoX;
+            _rectBotonConcesionario.X = 292 + desplazamientoX;
+            _rectBotonCorrer.X = 292 + desplazamientoX;
+            _rectBotonConfiguracion.X = _graphicsDevice.Viewport.Width - 74;
         }
 
         // Arma a mano un ícono de engranaje como Texture2D, pixel por pixel.

@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Media;
+using System;
 
 namespace La35Tunning.Escenas
 {
@@ -24,7 +25,7 @@ namespace La35Tunning.Escenas
             _graphics = graphics;
             _texturaPixel = new Texture2D(graphics.GraphicsDevice, 1, 1);
             _texturaPixel.SetData(new[] { Color.White });
-            _graphics.IsFullScreen = true;
+            _graphics.IsFullScreen = false;
             Point resolucionActual = new Point(graphics.PreferredBackBufferWidth, graphics.PreferredBackBufferHeight);
             _resoluciones = new[]
             {
@@ -61,7 +62,8 @@ namespace La35Tunning.Escenas
 
             if (hizoClic)
             {
-                Point posicion = mouseActual.Position;
+                Vector2 desplazamiento = ObtenerDesplazamiento();
+                Point posicion = mouseActual.Position - new Point((int)desplazamiento.X, (int)desplazamiento.Y);
                 if (new Rectangle(250, 170, 80, 50).Contains(posicion)) CambiarResolucion(-1);
                 if (new Rectangle(550, 170, 80, 50).Contains(posicion)) CambiarResolucion(1);
                 if (new Rectangle(250, 300, 80, 50).Contains(posicion)) CambiarVolumen(-10);
@@ -81,18 +83,18 @@ namespace La35Tunning.Escenas
 
         public void Draw(SpriteBatch spriteBatch, SpriteFont fuente, GraphicsDevice graphicsDevice)
         {
-            spriteBatch.DrawString(fuente, "CONFIGURACION", new Vector2(300, 70), Color.Gold);
-            spriteBatch.DrawString(fuente, "RESOLUCION", new Vector2(300, 135), Color.White);
-            DibujarBoton(spriteBatch, new Rectangle(250, 170, 80, 50), "<", fuente);
-            DibujarBoton(spriteBatch, new Rectangle(550, 170, 80, 50), ">", fuente);
-            spriteBatch.DrawString(fuente, $"{_resoluciones[_resolucionSeleccionada].X} x {_resoluciones[_resolucionSeleccionada].Y}", new Vector2(350, 180), Color.White);
-            spriteBatch.DrawString(fuente, "VOLUMEN", new Vector2(300, 265), Color.White);
-            DibujarBoton(spriteBatch, new Rectangle(250, 300, 80, 50), "<", fuente);
-            DibujarBoton(spriteBatch, new Rectangle(550, 300, 80, 50), ">", fuente);
-            spriteBatch.DrawString(fuente, $"{_volumen}%", new Vector2(390, 315), Color.White);
-            spriteBatch.DrawString(fuente, "PANTALLA COMPLETA", new Vector2(300, 365), Color.White);
-            spriteBatch.DrawString(fuente, "ACTIVADA", new Vector2(390, 395), Color.Cyan);
-            spriteBatch.DrawString(fuente, "VOLVER", new Vector2(390, 445), Color.Gold);
+            spriteBatch.DrawString(fuente, "CONFIGURACION", Mover(new Vector2(300, 70)), Color.Gold);
+            spriteBatch.DrawString(fuente, "RESOLUCION", Mover(new Vector2(300, 135)), Color.White);
+            DibujarBoton(spriteBatch, Mover(new Rectangle(250, 170, 80, 50)), "<", fuente);
+            DibujarBoton(spriteBatch, Mover(new Rectangle(550, 170, 80, 50)), ">", fuente);
+            spriteBatch.DrawString(fuente, $"{_resoluciones[_resolucionSeleccionada].X} x {_resoluciones[_resolucionSeleccionada].Y}", Mover(new Vector2(350, 180)), Color.White);
+            spriteBatch.DrawString(fuente, "VOLUMEN", Mover(new Vector2(300, 265)), Color.White);
+            DibujarBoton(spriteBatch, Mover(new Rectangle(250, 300, 80, 50)), "<", fuente);
+            DibujarBoton(spriteBatch, Mover(new Rectangle(550, 300, 80, 50)), ">", fuente);
+            spriteBatch.DrawString(fuente, $"{_volumen}%", Mover(new Vector2(390, 315)), Color.White);
+            spriteBatch.DrawString(fuente, "PANTALLA COMPLETA", Mover(new Vector2(300, 365)), Color.White);
+            spriteBatch.DrawString(fuente, "ACTIVADA", Mover(new Vector2(390, 395)), Color.Cyan);
+            spriteBatch.DrawString(fuente, "VOLVER", Mover(new Vector2(390, 445)), Color.Gold);
         }
 
         private void CambiarResolucion(int direccion)
@@ -101,8 +103,8 @@ namespace La35Tunning.Escenas
             Point resolucion = _resoluciones[_resolucionSeleccionada];
             _graphics.PreferredBackBufferWidth = resolucion.X;
             _graphics.PreferredBackBufferHeight = resolucion.Y;
-            _graphics.IsFullScreen = true;
-            _graphics.HardwareModeSwitch = true;
+            _graphics.IsFullScreen = false;
+            _graphics.HardwareModeSwitch = false;
             _graphics.ApplyChanges();
         }
 
@@ -122,6 +124,22 @@ namespace La35Tunning.Escenas
                 rectangulo.Center.X - medidaTexto.X / 2,
                 rectangulo.Center.Y - medidaTexto.Y / 2);
             spriteBatch.DrawString(fuente, texto, posicionTexto, Color.Cyan);
+        }
+
+        private Vector2 ObtenerDesplazamiento()
+        {
+            return new Vector2(Math.Max(0, (_graphics.GraphicsDevice.Viewport.Width - 800) / 2f), 0);
+        }
+
+        private Rectangle Mover(Rectangle rectangulo)
+        {
+            Vector2 desplazamiento = ObtenerDesplazamiento();
+            return new Rectangle(rectangulo.X + (int)desplazamiento.X, rectangulo.Y, rectangulo.Width, rectangulo.Height);
+        }
+
+        private Vector2 Mover(Vector2 posicion)
+        {
+            return posicion + ObtenerDesplazamiento();
         }
 
     }

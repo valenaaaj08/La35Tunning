@@ -66,13 +66,21 @@ namespace La35Tunning.Escenas
             _texturaPixel = texturaPixel;
             _jugador = jugador;
 
-            IniciarNuevaCarrera();
+            // Solo iniciar carrera si el jugador tiene auto
+            if (_autoJugador != null)
+            {
+                IniciarNuevaCarrera();
+            }
         }
 
         // Deja todo listo para largar: semáforo en la primera luz, autos
         // en la línea de largada, cronómetro en cero.
         public void IniciarNuevaCarrera()
         {
+            // Protección contra null
+            if (_autoJugador == null || _autoRival == null)
+                return;
+
             _semaforo.Reiniciar();
 
             _autoJugador.ReiniciarParaCarrera();
@@ -99,6 +107,10 @@ namespace La35Tunning.Escenas
 
         public void Update(GameTime gameTime)
         {
+            // Protección contra null si se llama sin auto inicializado
+            if (_autoJugador == null || _autoRival == null)
+                return;
+
             switch (Estado)
             {
                 case EstadoCarrera.Largada:
@@ -210,6 +222,9 @@ namespace La35Tunning.Escenas
 
         public void Draw(SpriteBatch spriteBatch)
         {
+            // Protección contra null si se llama sin autos inicializados
+            if (_autoJugador == null || _autoRival == null)
+                return;
 
             for (float x = 100f; x <= 100f + Auto.DistanciaMeta; x += 200f)
             {
@@ -229,6 +244,10 @@ namespace La35Tunning.Escenas
         // Draw(spriteBatch) de arriba sí se dibuja "con cámara".
         public void DibujarHud(SpriteBatch spriteBatch, SpriteFont fuente)
         {
+            // Protección contra null
+            if (_autoJugador == null || _autoRival == null)
+                return;
+
             Texture2D texturaSemaforo = _semaforo.TexturaActual();
             spriteBatch.Draw(texturaSemaforo, _posicionSemaforo, Color.White);
 

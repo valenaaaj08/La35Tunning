@@ -21,9 +21,10 @@ namespace La35Tunning.Escenas
         private readonly GraphicsDevice _graphicsDevice;
 
         // Rectángulos de posición y tamaño en pantalla para cada botón
-        private Rectangle _rectBotonTaller = new Rectangle(292, 310, 225, 105);
-        private Rectangle _rectBotonConcesionario = new Rectangle(292, 205, 225, 105);
-        private Rectangle _rectBotonCorrer = new Rectangle(292, 100, 225, 105);
+        // Movidos más abajo y centrados
+        private Rectangle _rectBotonCorrer = new Rectangle(292, 380, 225, 105);
+        private Rectangle _rectBotonConcesionario = new Rectangle(292, 500, 225, 105);
+        private Rectangle _rectBotonTaller = new Rectangle(292, 620, 225, 105);
         private Rectangle _rectBotonConfiguracion; // se calcula en el constructor, según el ancho de pantalla
 
         public EstadoJuego? SiguienteEstado { get; private set; }

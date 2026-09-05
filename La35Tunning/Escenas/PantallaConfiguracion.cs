@@ -9,31 +9,20 @@ namespace La35Tunning.Escenas
 {
     public class PantallaConfiguracion
     {
-        private readonly GraphicsDeviceManager _graphics;
         private readonly Texture2D _texturaPixel;
+        private readonly GraphicsDevice _graphicsDevice;
         private MouseState _mouseAnterior;
         private KeyboardState _tecladoAnterior;
         private bool _entradaInicializada;
-        private readonly Point[] _resoluciones;
-        private int _resolucionSeleccionada;
         private int _volumen = 70;
 
         public bool DebeVolver { get; private set; }
 
-        public PantallaConfiguracion(GraphicsDeviceManager graphics)
+        public PantallaConfiguracion(GraphicsDevice graphicsDevice)
         {
-            _graphics = graphics;
-            _texturaPixel = new Texture2D(graphics.GraphicsDevice, 1, 1);
+            _graphicsDevice = graphicsDevice;
+            _texturaPixel = new Texture2D(graphicsDevice, 1, 1);
             _texturaPixel.SetData(new[] { Color.White });
-            _graphics.IsFullScreen = false;
-            Point resolucionActual = new Point(graphics.PreferredBackBufferWidth, graphics.PreferredBackBufferHeight);
-            _resoluciones = new[]
-            {
-                resolucionActual,
-                new Point(800, 600),
-                new Point(1280, 720),
-                new Point(1920, 1080)
-            };
         }
 
 
@@ -64,17 +53,13 @@ namespace La35Tunning.Escenas
             {
                 Vector2 desplazamiento = ObtenerDesplazamiento();
                 Point posicion = mouseActual.Position - new Point((int)desplazamiento.X, (int)desplazamiento.Y);
-                if (new Rectangle(250, 170, 80, 50).Contains(posicion)) CambiarResolucion(-1);
-                if (new Rectangle(550, 170, 80, 50).Contains(posicion)) CambiarResolucion(1);
-                if (new Rectangle(250, 300, 80, 50).Contains(posicion)) CambiarVolumen(-10);
-                if (new Rectangle(550, 300, 80, 50).Contains(posicion)) CambiarVolumen(10);
-                if (new Rectangle(300, 430, 300, 55).Contains(posicion)) DebeVolver = true;
+                if (new Rectangle(250, 220, 80, 50).Contains(posicion)) CambiarVolumen(-10);
+                if (new Rectangle(550, 220, 80, 50).Contains(posicion)) CambiarVolumen(10);
+                if (new Rectangle(300, 350, 300, 55).Contains(posicion)) DebeVolver = true;
             }
 
             if (tecladoActual.IsKeyDown(Keys.Left) && _tecladoAnterior.IsKeyUp(Keys.Left)) CambiarVolumen(-10);
             if (tecladoActual.IsKeyDown(Keys.Right) && _tecladoAnterior.IsKeyUp(Keys.Right)) CambiarVolumen(10);
-            if (tecladoActual.IsKeyDown(Keys.Up) && _tecladoAnterior.IsKeyUp(Keys.Up)) CambiarResolucion(1);
-            if (tecladoActual.IsKeyDown(Keys.Down) && _tecladoAnterior.IsKeyUp(Keys.Down)) CambiarResolucion(-1);
             if (tecladoActual.IsKeyDown(Keys.Escape) && _tecladoAnterior.IsKeyUp(Keys.Escape)) DebeVolver = true;
 
             _mouseAnterior = mouseActual;
@@ -84,28 +69,11 @@ namespace La35Tunning.Escenas
         public void Draw(SpriteBatch spriteBatch, SpriteFont fuente, GraphicsDevice graphicsDevice)
         {
             spriteBatch.DrawString(fuente, "CONFIGURACION", Mover(new Vector2(300, 70)), Color.Gold);
-            spriteBatch.DrawString(fuente, "RESOLUCION", Mover(new Vector2(300, 135)), Color.White);
-            DibujarBoton(spriteBatch, Mover(new Rectangle(250, 170, 80, 50)), "<", fuente);
-            DibujarBoton(spriteBatch, Mover(new Rectangle(550, 170, 80, 50)), ">", fuente);
-            spriteBatch.DrawString(fuente, $"{_resoluciones[_resolucionSeleccionada].X} x {_resoluciones[_resolucionSeleccionada].Y}", Mover(new Vector2(350, 180)), Color.White);
-            spriteBatch.DrawString(fuente, "VOLUMEN", Mover(new Vector2(300, 265)), Color.White);
-            DibujarBoton(spriteBatch, Mover(new Rectangle(250, 300, 80, 50)), "<", fuente);
-            DibujarBoton(spriteBatch, Mover(new Rectangle(550, 300, 80, 50)), ">", fuente);
-            spriteBatch.DrawString(fuente, $"{_volumen}%", Mover(new Vector2(390, 315)), Color.White);
-            spriteBatch.DrawString(fuente, "PANTALLA COMPLETA", Mover(new Vector2(300, 365)), Color.White);
-            spriteBatch.DrawString(fuente, "ACTIVADA", Mover(new Vector2(390, 395)), Color.Cyan);
-            spriteBatch.DrawString(fuente, "VOLVER", Mover(new Vector2(390, 445)), Color.Gold);
-        }
-
-        private void CambiarResolucion(int direccion)
-        {
-            _resolucionSeleccionada = MathHelper.Clamp(_resolucionSeleccionada + direccion, 0, _resoluciones.Length - 1);
-            Point resolucion = _resoluciones[_resolucionSeleccionada];
-            _graphics.PreferredBackBufferWidth = resolucion.X;
-            _graphics.PreferredBackBufferHeight = resolucion.Y;
-            _graphics.IsFullScreen = false;
-            _graphics.HardwareModeSwitch = false;
-            _graphics.ApplyChanges();
+            spriteBatch.DrawString(fuente, "VOLUMEN", Mover(new Vector2(300, 150)), Color.White);
+            DibujarBoton(spriteBatch, Mover(new Rectangle(250, 220, 80, 50)), "<", fuente);
+            DibujarBoton(spriteBatch, Mover(new Rectangle(550, 220, 80, 50)), ">", fuente);
+            spriteBatch.DrawString(fuente, $"{_volumen}%", Mover(new Vector2(390, 235)), Color.White);
+            DibujarBoton(spriteBatch, Mover(new Rectangle(300, 350, 300, 55)), "VOLVER", fuente);
         }
 
         private void CambiarVolumen(int cantidad)
@@ -128,7 +96,7 @@ namespace La35Tunning.Escenas
 
         private Vector2 ObtenerDesplazamiento()
         {
-            return new Vector2(Math.Max(0, (_graphics.GraphicsDevice.Viewport.Width - 800) / 2f), 0);
+            return Vector2.Zero; // Sin desplazamiento en fullscreen
         }
 
         private Rectangle Mover(Rectangle rectangulo)

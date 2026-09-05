@@ -30,10 +30,12 @@ namespace La35Tunning.Entidades
 
 
         private const float AnchoDeseadoEnPantalla = 300f;
-        private const float DiametroLlantaEnPantalla = 62f;
-        private const float PosicionLlantaDelanteraX = 0.24f;
-        private const float PosicionLlantaTraseraX = 0.82f;
-        private const float PosicionLlantasY = 0.64f;
+        private const float DiametroLlantaEnPantalla = 39.68f;  // Reducido 20% más (ahora 40% menos que original: era 62f)
+        
+        // Posiciones de las ruedas (ajustables por auto)
+        private float _posicionLlantaDelanteraX = 0.24f;
+        private float _posicionLlantaTraseraX = 0.82f;
+        private float _posicionLlantasY = 0.64f;
 
         public int Precio { get { return _precio; } }
         public string Modelo { get { return _modelo; } }
@@ -62,7 +64,8 @@ namespace La35Tunning.Entidades
             }
         }
 
-        public Auto(string modelo, float velocidadBase, float aceleracionBase, int precio, Texture2D textura, Texture2D texturaTaller = null)
+        public Auto(string modelo, float velocidadBase, float aceleracionBase, int precio, Texture2D textura, Texture2D texturaTaller = null, 
+                    float posicionDelanteraX = 0.24f, float posicionTraseraX = 0.82f, float posicionLlantasY = 0.64f)
         {
             _modelo = modelo;
             _velocidadMaximaBase = velocidadBase;
@@ -71,6 +74,11 @@ namespace La35Tunning.Entidades
             _texturaTaller = texturaTaller;
             _precio = precio;
             _posicion = new Vector2(100, 200);
+            
+            // Configurar posiciones de las ruedas según el auto
+            _posicionLlantaDelanteraX = posicionDelanteraX;
+            _posicionLlantaTraseraX = posicionTraseraX;
+            _posicionLlantasY = posicionLlantasY;
 
             // Inicialización de componentes de fábrica (Stock con multiplicador 1.0 y costo 0)
             _motorActual = new Motor("Motor de Fábrica", 1.0f, 0);
@@ -281,11 +289,11 @@ namespace La35Tunning.Entidades
             if (_llantaDelantera != null && _llantaTrasera != null)
             {
                 Vector2 posicionRuedaDelantera = _posicion + new Vector2(
-                    _texturaAuto.Width * PosicionLlantaDelanteraX,
-                    _texturaAuto.Height * PosicionLlantasY) * escala;
+                    _texturaAuto.Width * _posicionLlantaDelanteraX,
+                    _texturaAuto.Height * _posicionLlantasY) * escala;
                 Vector2 posicionRuedaTrasera = _posicion + new Vector2(
-                    _texturaAuto.Width * PosicionLlantaTraseraX,
-                    _texturaAuto.Height * PosicionLlantasY) * escala;
+                    _texturaAuto.Width * _posicionLlantaTraseraX,
+                    _texturaAuto.Height * _posicionLlantasY) * escala;
 
                 float escalaLlantaDelantera = DiametroLlantaEnPantalla / _llantaDelantera.Width;
                 float escalaLlantaTrasera = DiametroLlantaEnPantalla / _llantaTrasera.Width;

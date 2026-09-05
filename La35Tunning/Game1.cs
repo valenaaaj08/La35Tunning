@@ -1,6 +1,7 @@
 ﻿using System;
 using La35Tunning.Entidades;
 using La35Tunning.Escenas;
+using La35Tunning.Factories;
 using La35Tunning.Modelos;
 using La35Tunning.Sistemas;
 using Microsoft.Xna.Framework;
@@ -33,14 +34,20 @@ namespace La35Tunning
 
         private Texture2D _texturaPixel;
         private Song _musicaMenu;
+        private string _mensajeError = "";
+        private float _tiempoMensajeError = 0f;
 
 
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
-            _graphics.PreferredBackBufferWidth = 800;
-            _graphics.PreferredBackBufferHeight = 600;
-            _graphics.IsFullScreen = false;
+            // Obtener la resolución actual del monitor
+            int anchoMonitor = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
+            int altoMonitor = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
+            _graphics.PreferredBackBufferWidth = anchoMonitor;
+            _graphics.PreferredBackBufferHeight = altoMonitor;
+            _graphics.IsFullScreen = true;
+            _graphics.HardwareModeSwitch = false;
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
         }
@@ -49,7 +56,7 @@ namespace La35Tunning
         // Acá va solo lógica y datos que no dependan de Content (texturas, fuentes, etc).
         protected override void Initialize()
         {
-            _jugador = new Jugador("Valentin", 5000000m);
+            _jugador = new Jugador("Valentin", 7000000m);
             base.Initialize();
         }
 
@@ -81,24 +88,20 @@ namespace La35Tunning
                 MediaPlayer.IsRepeating = true;
                 MediaPlayer.Volume = 0.7f;
                 MediaPlayer.Play(_musicaMenu);
-                Texture2D texturaUnoTemp = Content.Load<Texture2D>("Uno");
-                _jugador.AsignarAuto(new Auto("Fiat Uno", 7.5f, 0.18f, 3800000, texturaUnoTemp));
-                _jugador.AgregarAutoComprado(_jugador.AutoActual); // el auto inicial también forma parte del garage
+                
+                // El jugador comienza sin auto - debe comprar uno en el concesionario
                 _pantallaTaller = new PantallaTaller(Content, _jugador);
-                _pantallaConfiguracion = new PantallaConfiguracion(_graphics);
+                _pantallaConfiguracion = new PantallaConfiguracion(GraphicsDevice);
 
                 Texture2D texturaLlantaDefault = Content.Load<Texture2D>("llantaDefault");
-                _jugador.AutoActual.InstalarLlantas(texturaLlantaDefault, texturaLlantaDefault);
                 _concesionarioSistema = new Sistemas.Concesionario(Content, texturaLlantaDefault);
                 _pantallaConcesionario = new PantallaConcesionario(_concesionarioSistema, _jugador, GraphicsDevice);
 
-                Texture2D texturaRival = Content.Load<Texture2D>("gol");
-                Auto autoRival = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, texturaRival);
-                autoRival.InstalarLlantas(texturaLlantaDefault, texturaLlantaDefault);
+                Auto autoRival = AutoFactory.CrearGol(Content, texturaLlantaDefault);
                 _texturaPixel = new Texture2D(GraphicsDevice, 1, 1);
                 _texturaPixel.SetData(new[] { Color.White });
 
-                _pantallaCarrera = new PantallaCarrera(_jugador.AutoActual, autoRival, new Sistemas.Semaforo(
+                _pantallaCarrera = new PantallaCarrera(null, autoRival, new Sistemas.Semaforo(
                     Content.Load<Texture2D>("semaforo1"), Content.Load<Texture2D>("semaforo2"),
                     Content.Load<Texture2D>("semaforo3"), Content.Load<Texture2D>("semaforo4"),
                     Content.Load<Texture2D>("semaforo5"), Content.Load<Texture2D>("semaforoFallida")),
@@ -115,6 +118,10 @@ namespace La35Tunning
 
         protected override void Update(GameTime gameTime)
         {
+            // Actualizar tiempo del mensaje de error
+            if (_tiempoMensajeError > 0f)
+                _tiempoMensajeError -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+
             switch (_estadoActual)
             {
                 case EstadoJuego.MenuPrincipal:
@@ -188,6 +195,13 @@ namespace La35Tunning
                         {
                             _menuPrincipal.Draw(_spriteBatch, _fuente, GraphicsDevice);
                         }
+                        
+                        // Mostrar mensaje de error temporal si existe
+                        if (_tiempoMensajeError > 0f)
+                        {
+                            _spriteBatch.Draw(_texturaPixel, new Rectangle(0, 0, GraphicsDevice.Viewport.Width, 100), Color.Black * 0.7f);
+                            _spriteBatch.DrawString(_fuente, _mensajeError, new Vector2(50, 20), Color.Red);
+                        }
                         break;
 
                     case EstadoJuego.Taller:
@@ -215,7 +229,7 @@ namespace La35Tunning
                         break;
 
                     case EstadoJuego.Carrera:
-                        if (_pantallaCarrera != null && _camara != null)
+                        if (_pantallaCarrera != null && _camara != null && _jugador.AutoActual != null)
                         {
                             _camara.Update(_jugador.AutoActual.Posicion);
 
@@ -225,6 +239,28 @@ namespace La35Tunning
 
                             _spriteBatch.Begin();
                             _pantallaCarrera.DibujarHud(_spriteBatch, _fuente);
+                        }
+                        else if (_pantallaCarrera != null && _jugador.AutoActual == null)
+                        {
+                            _spriteBatch.Begin();
+                            // Mostrar mensaje de error si se intenta correr sin auto
+                            string mensajeError = "¡No se puede correr sin auto, wachin!";
+                            Vector2 tamañoTexto = _fuente.MeasureString(mensajeError);
+                            int ancho = GraphicsDevice.Viewport.Width;
+                            int alto = GraphicsDevice.Viewport.Height;
+                            Vector2 posicion = new Vector2(
+                                (ancho - tamañoTexto.X) / 2,
+                                (alto - tamañoTexto.Y) / 2);
+                            
+                            // Fondo semi-transparente
+                            _texturaPixel.SetData(new[] { Color.Black });
+                            _spriteBatch.Draw(_texturaPixel, new Rectangle(0, 0, ancho, alto), Color.Black * 0.5f);
+                            
+                            // Texto de error en rojo
+                            _spriteBatch.DrawString(_fuente, mensajeError, posicion, Color.Red);
+                            _spriteBatch.DrawString(_fuente, "Presiona ESC para volver", 
+                                new Vector2((ancho - _fuente.MeasureString("Presiona ESC para volver").X) / 2, posicion.Y + 80), 
+                                Color.White);
                         }
                         break;
 
@@ -246,9 +282,21 @@ namespace La35Tunning
 
         private void CambiarEstado(EstadoJuego nuevoEstado)
         {
-            if (nuevoEstado == EstadoJuego.Carrera && _jugador.AutoActual != null && _pantallaCarrera != null)
+            // Validar que el jugador tenga un auto antes de entrar a carrera
+            if (nuevoEstado == EstadoJuego.Carrera)
             {
-                _pantallaCarrera.CambiarAutoJugador(_jugador.AutoActual);
+                if (_jugador.AutoActual == null)
+                {
+                    // No cambiar estado, el jugador debe comprar un auto primero
+                    _mensajeError = "¡No se puede correr sin auto, wachin!";
+                    _tiempoMensajeError = 3f;
+                    System.Diagnostics.Debug.WriteLine("Necesitas comprar un auto primero.");
+                    return;
+                }
+                if (_pantallaCarrera != null)
+                {
+                    _pantallaCarrera.CambiarAutoJugador(_jugador.AutoActual);
+                }
             }
 
             if (nuevoEstado == EstadoJuego.Configuracion)
@@ -275,6 +323,12 @@ namespace La35Tunning
             }
 
             _estadoActual = nuevoEstado;
+            
+            // Reiniciar pantalla de configuración si volvemos a ella
+            if (nuevoEstado == EstadoJuego.Configuracion && _pantallaConfiguracion != null)
+            {
+                _pantallaConfiguracion.Reiniciar();
+            }
         }
     }
 }

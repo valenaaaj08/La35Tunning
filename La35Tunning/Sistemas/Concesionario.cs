@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using La35Tunning.Entidades;
+using La35Tunning.Factories;
 using La35Tunning.Modelos;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
@@ -15,23 +16,11 @@ namespace La35Tunning.Sistemas
         {
             _catalogo = new List<Auto>();
 
-            // Cargamos las texturas de los autos desde el contenido
-            Texture2D texturaUno = content.Load<Texture2D>("Uno");
-            Texture2D texturaGol = content.Load<Texture2D>("gol");
-            Texture2D texturaClio = content.Load<Texture2D>("clio");
-            Texture2D texturaCorsa = content.Load<Texture2D>("corsa");
-
-            // Creamos e instanciamos todos los vehículos del catálogo
-            Auto autoGol = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, texturaGol);
-            Auto autoUno = new Auto("Fiat Uno", 7.5f, 0.18f, 3800000, texturaUno);
-            Auto autoClio = new Auto("Renault Clio", 8.5f, 0.16f, 5200000, texturaClio);
-            Auto autoCorsa = new Auto("Chevrolet Corsa", 8f, 0.15f, 4200000, texturaCorsa);
-
-            // Les instalamos las llantas por defecto
-            autoGol.InstalarLlantas(texturaLlantaDefault, texturaLlantaDefault);
-            autoUno.InstalarLlantas(texturaLlantaDefault, texturaLlantaDefault);
-            autoClio.InstalarLlantas(texturaLlantaDefault, texturaLlantaDefault);
-            autoCorsa.InstalarLlantas(texturaLlantaDefault, texturaLlantaDefault);
+            // Usamos el Factory para crear los autos del catálogo
+            Auto autoGol = AutoFactory.CrearGol(content, texturaLlantaDefault);
+            Auto autoUno = AutoFactory.CrearUno(content, texturaLlantaDefault);
+            Auto autoClio = AutoFactory.CrearClio(content, texturaLlantaDefault);
+            Auto autoCorsa = AutoFactory.CrearCorsa(content, texturaLlantaDefault);
 
             // Los agregamos al catálogo
             _catalogo.Add(autoGol);

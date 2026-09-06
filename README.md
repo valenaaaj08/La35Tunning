@@ -86,6 +86,10 @@ prueba). Pendiente: fondo/pista real (hoy solo hay marcas de distancia
 como referencia visual temporal), pantalla de Concesionario, y todo el
 módulo de red multijugador (Etapas 3-4 de la propuesta).
 
+## Pre entrega - Video de muestra
+
+[[https://youtu.be/JNH2FeuMqaU](https://www.youtube.com/watch?v=JNH2FeuMqaU&feature=youtu.be)](https://youtu.be/JNH2FeuMqaU?si=Xp2lX5mkLVV7ruGQ)
+
 
 ## 📖 Wiki
 **https://github.com/valenaaaj08/La35Tunning/wiki**

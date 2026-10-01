@@ -25,9 +25,6 @@ namespace La35Tunning.Escenas
             _texturaPixel.SetData(new[] { Color.White });
         }
 
-
-        // Se llama cada vez que se entra a esta pantalla, para dejarla
-        // lista de nuevo (el mismo patrón que Semaforo.Reiniciar()).
         public void Reiniciar()
         {
             DebeVolver = false;
@@ -96,7 +93,7 @@ namespace La35Tunning.Escenas
 
         private Vector2 ObtenerDesplazamiento()
         {
-            return Vector2.Zero; // Sin desplazamiento en fullscreen
+            return Vector2.Zero;
         }
 
         private Rectangle Mover(Rectangle rectangulo)
@@ -109,6 +106,5 @@ namespace La35Tunning.Escenas
         {
             return posicion + ObtenerDesplazamiento();
         }
-
     }
 }

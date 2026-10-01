@@ -5,26 +5,15 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 
-
 namespace La35Tunning.Escenas
 {
-    // Las 3 etapas por las que pasa una carrera. Es lo mismo que un enum
-    // en Java, y lo usamos para que Update() sepa qué lógica correr.
     public enum EstadoCarrera
     {
-        Largada,    // el semáforo está haciendo la cuenta de luces
-        Corriendo,  // ya se prendió el verde, los autos avanzan
-        Terminada   // alguien ganó, alguien se descalificó, etc.
+        Largada,
+        Corriendo,
+        Terminada
     }
 
-    // Pantalla del MVP: semáforo + picada de 400m en vista lateral.
-    //
-    // IMPORTANTE (para que no te sorprenda al leerla): el "auto rival"
-    // ahora mismo es un maniquí que avanza a velocidad fija, SOLO para
-    // poder probar la carrera vos solo sin depender todavía del servidor
-    // ni de la IA Fantasma (esas son las Etapas 3, 4 y 9 de la propuesta).
-    // Cuando eso esté listo, en vez de moverlo con AvanzarDistancia() fijo,
-    // se va a mover con la posición que mande el servidor o la IA.
     public class PantallaCarrera : IPantallas
     {
         private Auto _autoJugador;
@@ -34,7 +23,6 @@ namespace La35Tunning.Escenas
         private readonly Modelos.Jugador _jugador;
         private const decimal PremioPorGanar = 50000;
 
-        // Carriles (posición Y fija) para separar visualmente los dos autos.
         private readonly float _carrilJugadorY;
         private readonly float _carrilRivalY;
 
@@ -42,18 +30,12 @@ namespace La35Tunning.Escenas
 
         public EstadoCarrera Estado { get; private set; }
 
-        private float _cronometro;          // segundos desde que se prendió el verde
-        private float _tiempoFinalJugador;  // en qué segundo cruzó la meta el jugador (0 = todavía no)
+        private float _cronometro;
+        private float _tiempoFinalJugador;
         private float _tiempoFinalRival;
 
-        // Velocidad fija del rival de prueba. Ver el comentario de la
-        // clase: esto es TEMPORAL, solo para el prototipo local.
         private const float VelocidadRivalProvisoria = 6.5f;
 
-        // KeyboardState del frame anterior, para detectar el instante
-        // exacto en que se APRETÓ Enter (y no mientras se mantiene
-        // apretado). Sin esto, "Terminada" reiniciaría la carrera muchas
-        // veces en un solo segundo.
         private KeyboardState _tecladoAnterior;
 
         public PantallaCarrera(Auto autoJugador, Auto autoRival, Semaforo semaforo, float carrilJugadorY, float carrilRivalY, Texture2D texturaPixel, Modelos.Jugador jugador)
@@ -66,18 +48,14 @@ namespace La35Tunning.Escenas
             _texturaPixel = texturaPixel;
             _jugador = jugador;
 
-            // Solo iniciar carrera si el jugador tiene auto
             if (_autoJugador != null)
             {
                 IniciarNuevaCarrera();
             }
         }
 
-        // Deja todo listo para largar: semáforo en la primera luz, autos
-        // en la línea de largada, cronómetro en cero.
         public void IniciarNuevaCarrera()
         {
-            // Protección contra null
             if (_autoJugador == null || _autoRival == null)
                 return;
 
@@ -107,7 +85,6 @@ namespace La35Tunning.Escenas
 
         public void Update(GameTime gameTime)
         {
-            // Protección contra null si se llama sin auto inicializado
             if (_autoJugador == null || _autoRival == null)
                 return;
 
@@ -133,8 +110,6 @@ namespace La35Tunning.Escenas
         {
             _semaforo.Update(gameTime);
 
-            // semaforoEnVerde: false -> ActualizarEnCarrera no mueve el auto,
-            // solo nos devuelve si el jugador intentó acelerar de prepo.
             bool salioAntes = _autoJugador.ActualizarEnCarrera(gameTime, semaforoEnVerde: false);
             if (salioAntes)
             {
@@ -155,6 +130,17 @@ namespace La35Tunning.Escenas
             }
         }
 
+        private bool GanoElJugador()
+        {
+            bool ganaPorMeta = _autoJugador.LlegoAMeta && (!_autoRival.LlegoAMeta || _tiempoFinalJugador <= _tiempoFinalRival);
+            return ganaPorMeta;
+        }
+
+        private bool TerminoLaCarrera()
+        {
+            return _autoJugador.LlegoAMeta || _autoRival.LlegoAMeta;
+        }
+
         private void ActualizarCarrera(GameTime gameTime)
         {
             _cronometro += (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -162,34 +148,25 @@ namespace La35Tunning.Escenas
             _autoJugador.ActualizarEnCarrera(gameTime, semaforoEnVerde: true);
             _autoRival.AvanzarDistancia(VelocidadRivalProvisoria);
 
-            // Registramos el tiempo exacto de cada uno la primera vez que
-            // cruzan la meta (por eso comparamos contra 0, "todavía no llegó").
             if (_autoJugador.LlegoAMeta && _tiempoFinalJugador == 0f)
                 _tiempoFinalJugador = _cronometro;
 
             if (_autoRival.LlegoAMeta && _tiempoFinalRival == 0f)
                 _tiempoFinalRival = _cronometro;
 
-            if (_autoJugador.LlegoAMeta || _autoRival.LlegoAMeta)
+            if (TerminoLaCarrera())
             {
                 Estado = EstadoCarrera.Terminada;
 
-                bool ganoJugador = _autoJugador.LlegoAMeta &&
-                    (!_autoRival.LlegoAMeta || _tiempoFinalJugador <= _tiempoFinalRival);
-
-                if (ganoJugador)
+                if (GanoElJugador())
                 {
                     _jugador.SumarDinero(PremioPorGanar);
                 }
-
             }
         }
 
         private void ActualizarPantallaDeResultado()
         {
-            // Con Enter se arranca otra carrera. Comparamos con el
-            // teclado del frame anterior para que sea "apretar", no
-            // "mantener apretado".
             var tecladoActual = Keyboard.GetState();
             bool sePresionoAhora = tecladoActual.IsKeyDown(Keys.Enter) && !_tecladoAnterior.IsKeyDown(Keys.Enter);
 
@@ -199,10 +176,6 @@ namespace La35Tunning.Escenas
             }
         }
 
-        // TODO(próximo paso): esto hoy escribe el resultado en la consola
-        // de depuración porque todavía no tenemos un SpriteFont cargado en
-        // el proyecto para dibujar texto en pantalla. En cuanto agreguemos
-        // uno, este resultado va a mostrarse como un cartel en el juego.
         private void MostrarResultado()
         {
             if (_autoJugador.Descalificado)
@@ -222,7 +195,6 @@ namespace La35Tunning.Escenas
 
         public void Draw(SpriteBatch spriteBatch)
         {
-            // Protección contra null si se llama sin autos inicializados
             if (_autoJugador == null || _autoRival == null)
                 return;
 
@@ -231,58 +203,20 @@ namespace La35Tunning.Escenas
                 spriteBatch.Draw(_texturaPixel, new Rectangle((int)x, 150, 4, 350), Color.Gray);
             }
 
-            // Esto dibuja los elementos que viven "en el mundo" del juego
-            // (los autos), o sea que se mueven junto con la cámara.
             _autoJugador.Draw(spriteBatch);
             _autoRival.Draw(spriteBatch);
         }
 
-        // El semáforo es HUD: tiene que quedarse fijo en la pantalla sin
-        // importar hacia dónde se mueva la cámara siguiendo al auto. Por
-        // eso es un método aparte: Game1 lo va a dibujar en un SpriteBatch
-        // "sin cámara" (sin la Matrix de transformación), mientras que
-        // Draw(spriteBatch) de arriba sí se dibuja "con cámara".
         public void DibujarHud(SpriteBatch spriteBatch, SpriteFont fuente)
         {
-            // Protección contra null
-            if (_autoJugador == null || _autoRival == null)
+            if (_autoJugador == null)
                 return;
 
-            Texture2D texturaSemaforo = _semaforo.TexturaActual();
-            spriteBatch.Draw(texturaSemaforo, _posicionSemaforo, Color.White);
-
-            string textoSemaforo = _semaforo.TextoActual();
-            if (!string.IsNullOrEmpty(textoSemaforo))
-            {
-                const float escalaTexto = 2f;
-                Vector2 medidaTexto = fuente.MeasureString(textoSemaforo) * escalaTexto;
-                Vector2 posicionTexto = new Vector2(
-                    _posicionSemaforo.X + texturaSemaforo.Width / 2f - medidaTexto.X / 2f,
-                    _posicionSemaforo.Y + texturaSemaforo.Height + 20f);
-
-                spriteBatch.DrawString(fuente, textoSemaforo, posicionTexto, Color.Yellow, 0f, Vector2.Zero, escalaTexto, SpriteEffects.None, 0f);
-            }
-
-            if (Estado != EstadoCarrera.Terminada)
-            {
-                float distanciaRestante = (1f - _autoJugador.ProgresoCarrera) * Auto.DistanciaMeta;
-                spriteBatch.DrawString(fuente, $"Tiempo: {_cronometro:0.00}s", new Vector2(50, 20), Color.White);
-                spriteBatch.DrawString(fuente, $"Distancia restante: {distanciaRestante:0}m", new Vector2(50, 50), Color.White);
-            }
-
-            if (Estado == EstadoCarrera.Terminada)
-            {
-                string mensaje;
-                if (_autoJugador.Descalificado)
-                    mensaje = "Salida anticipada - Ganó el rival";
-                else if (_autoJugador.LlegoAMeta && (!_autoRival.LlegoAMeta || _tiempoFinalJugador <= _tiempoFinalRival))
-                    mensaje = $"¡Ganaste! Tiempo: {_tiempoFinalJugador:0.000}s";
-                else
-                    mensaje = $"Ganó el rival. Tiempo: {_tiempoFinalRival:0.000}s";
-
-                spriteBatch.DrawString(fuente, mensaje, new Vector2(250, 200), Color.Yellow);
-                spriteBatch.DrawString(fuente, "Presioná [ENTER] para reintentar", new Vector2(250, 230), Color.Gray);
-            }
+            spriteBatch.DrawString(fuente, "CARRERA", new Vector2(50, 20), Color.Gold);
+            spriteBatch.DrawString(fuente, $"Dinero: ${_jugador.Dinero}", new Vector2(50, 50), Color.White);
+            spriteBatch.DrawString(fuente, $"Meta: {_autoJugador.ProgresoCarrera * 100:0}%", new Vector2(50, 80), Color.White);
+            spriteBatch.DrawString(fuente, _semaforo.TextoActual(), new Vector2(650, 20), Color.White);
+            spriteBatch.Draw(_semaforo.TexturaActual(), new Rectangle(700, 70, 100, 180), Color.White);
         }
     }
 }

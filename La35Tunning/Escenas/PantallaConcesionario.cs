@@ -17,17 +17,12 @@ namespace La35Tunning.Escenas
         private MouseState _mouseAnterior;
         private bool _entradaInicializada;
 
-        // Índice del primer auto del catálogo que se ve en pantalla (esto es "el scroll")
         private int _scrollCatalogo;
         private const int FilasVisibles = 3;
 
         private string _mensajeFeedback = "";
         private float _tiempoMensajeRestante;
 
-        // En cada Draw anotamos dónde quedó dibujado cada botón, para poder revisar en el
-        // próximo Update si el click cayó ahí adentro. Es el mismo approach que un Rectangle
-        // de colisión en Java: se recalcula todo el tiempo porque la lista de autos cambia
-        // (se van vendiendo/comprando) y las filas se corren de posición.
         private readonly List<(Rectangle rect, int indiceCatalogo)> _botonesComprar = new();
         private readonly List<(Rectangle rect, Auto auto)> _botonesEquipar = new();
         private readonly List<(Rectangle rect, Auto auto)> _botonesVender = new();
@@ -43,8 +38,6 @@ namespace La35Tunning.Escenas
             _texturaPixel.SetData(new[] { Color.White });
         }
 
-        // Se llama cada vez que entramos a esta pantalla desde el menú, para no arrastrar
-        // el estado de la visita anterior (el mismo bug que ya nos pasó con DebeVolver en Configuración).
         public void Reiniciar()
         {
             _entradaInicializada = false;
@@ -57,8 +50,6 @@ namespace La35Tunning.Escenas
         {
             MouseState mouseActual = Mouse.GetState();
 
-            // Primer frame en esta pantalla: solo guardamos el estado del mouse, no reaccionamos
-            // a nada todavía (evita procesar un click que en realidad era para el menú anterior).
             if (!_entradaInicializada)
             {
                 _mouseAnterior = mouseActual;
@@ -71,8 +62,6 @@ namespace La35Tunning.Escenas
 
             bool hizoClic = mouseActual.LeftButton == ButtonState.Pressed && _mouseAnterior.LeftButton == ButtonState.Released;
 
-            // ScrollWheelValue es un acumulado total, no un delta. Restando el valor anterior
-            // sacamos cuánto giró la rueda desde el último frame. Cada "click" de rueda son 120 unidades.
             int deltaRueda = mouseActual.ScrollWheelValue - _mouseAnterior.ScrollWheelValue;
             if (deltaRueda != 0)
             {
@@ -130,8 +119,6 @@ namespace La35Tunning.Escenas
 
         public void Draw(SpriteBatch spriteBatch, SpriteFont fuente, GraphicsDevice graphicsDevice)
         {
-            // Recalculamos los botones desde cero en cada frame: si se compra o vende un auto,
-            // la cantidad de filas cambia, así que las posiciones de clickeo de antes ya no sirven.
             _botonesComprar.Clear();
             _botonesEquipar.Clear();
             _botonesVender.Clear();
@@ -186,7 +173,6 @@ namespace La35Tunning.Escenas
                 y += fila.Height + 15;
             }
 
-            // Flechas para moverse por el catálogo cuando hay más autos de los que entran en pantalla.
             bool hayMasArriba = _scrollCatalogo > 0;
             bool hayMasAbajo = _scrollCatalogo + FilasVisibles < catalogo.Count;
 

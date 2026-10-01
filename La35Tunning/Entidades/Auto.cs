@@ -13,14 +13,12 @@ namespace La35Tunning.Entidades
         private float _velocidadActual = 0f;
         private int _precio;
 
-        // Texturas del auto para diferentes pantallas
-        private Texture2D _texturaAuto;      // Perfil (Carreras / Concesionario)
-        private Texture2D _texturaTaller;    // Frente con capot abierto (Taller)
+        private Texture2D _texturaAuto;
+        private Texture2D _texturaTaller;
         private Texture2D _llantaDelantera;
         private Texture2D _llantaTrasera;
         public float AnguloLlanta { get; set; } = 0f;
 
-        // Slots específicos para cada tipo de componente (nacen con stock por defecto)
         private Motor _motorActual;
         private Turbo _turboActual;
         private Transmision _transmisionActual;
@@ -28,11 +26,9 @@ namespace La35Tunning.Entidades
         private Neumatico _neumaticoActual;
         private readonly HashSet<Componente> _piezasCompradas = new HashSet<Componente>();
 
-
         private const float AnchoDeseadoEnPantalla = 300f;
-        private const float DiametroLlantaEnPantalla = 39.68f;  // Reducido 20% más (ahora 40% menos que original: era 62f)
-        
-        // Posiciones de las ruedas (ajustables por auto)
+        private const float DiametroLlantaEnPantalla = 39.68f;
+
         private float _posicionLlantaDelanteraX = 0.24f;
         private float _posicionLlantaTraseraX = 0.82f;
         private float _posicionLlantasY = 0.64f;
@@ -48,7 +44,6 @@ namespace La35Tunning.Entidades
         public Intercooler IntercoolerActual { get { return _intercoolerActual; } }
         public Neumatico NeumaticoActual { get { return _neumaticoActual; } }
 
-        // --- Datos específicos del modo carrera (picada de 400m) ---
         public const float DistanciaMeta = 1600f;
         private const float PosicionLargada = 100f;
 
@@ -64,7 +59,7 @@ namespace La35Tunning.Entidades
             }
         }
 
-        public Auto(string modelo, float velocidadBase, float aceleracionBase, int precio, Texture2D textura, Texture2D texturaTaller = null, 
+        public Auto(string modelo, float velocidadBase, float aceleracionBase, int precio, Texture2D textura, Texture2D texturaTaller = null,
                     float posicionDelanteraX = 0.24f, float posicionTraseraX = 0.82f, float posicionLlantasY = 0.64f)
         {
             _modelo = modelo;
@@ -74,13 +69,11 @@ namespace La35Tunning.Entidades
             _texturaTaller = texturaTaller;
             _precio = precio;
             _posicion = new Vector2(100, 200);
-            
-            // Configurar posiciones de las ruedas según el auto
+
             _posicionLlantaDelanteraX = posicionDelanteraX;
             _posicionLlantaTraseraX = posicionTraseraX;
             _posicionLlantasY = posicionLlantasY;
 
-            // Inicialización de componentes de fábrica (Stock con multiplicador 1.0 y costo 0)
             _motorActual = new Motor("Motor de Fábrica", 1.0f, 0);
             _turboActual = new Turbo("Sin Turbo (Stock)", 1.0f, 0);
             _transmisionActual = new Transmision("Transmisión de Fábrica", 1.0f, 0);
@@ -197,38 +190,44 @@ namespace La35Tunning.Entidades
             LlegoAMeta = false;
         }
 
-        public bool ActualizarEnCarrera(GameTime gameTime, bool semaforoEnVerde)
+        private float CalcularAceleracionReal()
         {
-            var estadoTeclado = Microsoft.Xna.Framework.Input.Keyboard.GetState();
-            bool intentaAcelerar = estadoTeclado.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.W);
+            return _aceleracionBase * MultiplicadorMotorTotal;
+        }
 
-            if (!semaforoEnVerde)
+        private float CalcularVelocidadMaximaReal()
+        {
+            return _velocidadMaximaBase * MultiplicadorMotorTotal;
+        }
+
+        private bool SeQuiereAcelerar()
+        {
+            var teclado = Microsoft.Xna.Framework.Input.Keyboard.GetState();
+            return teclado.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.W);
+        }
+
+        private void Acelerar(float aceleracion, float velocidadMaxima)
+        {
+            _velocidadActual += aceleracion;
+
+            if (_velocidadActual > velocidadMaxima)
             {
-                return intentaAcelerar;
+                _velocidadActual = velocidadMaxima;
             }
+        }
 
-            if (Descalificado || LlegoAMeta)
+        private void Frenar()
+        {
+            _velocidadActual -= 0.05f;
+
+            if (_velocidadActual < 0f)
             {
-                return false;
+                _velocidadActual = 0f;
             }
+        }
 
-            float aceleracionReal = _aceleracionBase * MultiplicadorMotorTotal;
-            float velocidadMaximaReal = _velocidadMaximaBase * MultiplicadorMotorTotal;
-
-            if (intentaAcelerar)
-            {
-                _velocidadActual += aceleracionReal;
-                if (_velocidadActual > velocidadMaximaReal)
-                {
-                    _velocidadActual = velocidadMaximaReal;
-                }
-            }
-            else
-            {
-                _velocidadActual -= 0.05f;
-                if (_velocidadActual < 0f) _velocidadActual = 0f;
-            }
-
+        private void MoverAuto(GameTime gameTime)
+        {
             _posicion.X += _velocidadActual;
 
             if (_velocidadActual != 0)
@@ -240,46 +239,57 @@ namespace La35Tunning.Entidades
             {
                 LlegoAMeta = true;
             }
+        }
 
+        public bool ActualizarEnCarrera(GameTime gameTime, bool semaforoEnVerde)
+        {
+            if (!semaforoEnVerde)
+            {
+                return SeQuiereAcelerar();
+            }
+
+            if (Descalificado || LlegoAMeta)
+            {
+                return false;
+            }
+
+            float aceleracionReal = CalcularAceleracionReal();
+            float velocidadMaximaReal = CalcularVelocidadMaximaReal();
+
+            if (SeQuiereAcelerar())
+            {
+                Acelerar(aceleracionReal, velocidadMaximaReal);
+            }
+            else
+            {
+                Frenar();
+            }
+
+            MoverAuto(gameTime);
             return false;
         }
 
         public override void Update(GameTime gameTime)
         {
-            var estadoTeclado = Microsoft.Xna.Framework.Input.Keyboard.GetState();
+            float aceleracionReal = CalcularAceleracionReal();
+            float velocidadMaximaReal = CalcularVelocidadMaximaReal();
 
-            float aceleracionReal = _aceleracionBase * MultiplicadorMotorTotal;
-            float velocidadMaximaReal = _velocidadMaximaBase * MultiplicadorMotorTotal;
-
-            if (estadoTeclado.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.W))
+            if (SeQuiereAcelerar())
             {
-                _velocidadActual += aceleracionReal;
-                if (_velocidadActual > velocidadMaximaReal)
-                {
-                    _velocidadActual = velocidadMaximaReal;
-                }
+                Acelerar(aceleracionReal, velocidadMaximaReal);
             }
-            else if (estadoTeclado.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.S))
+            else if (Microsoft.Xna.Framework.Input.Keyboard.GetState().IsKeyDown(Microsoft.Xna.Framework.Input.Keys.S))
             {
                 _velocidadActual -= 0.2f;
                 if (_velocidadActual < 0f) _velocidadActual = 0f;
             }
             else
             {
-                _velocidadActual -= 0.05f;
-                if (_velocidadActual < 0f) _velocidadActual = 0f;
+                Frenar();
             }
 
-            _posicion.X += _velocidadActual;
-
-            if (_velocidadActual != 0)
-            {
-                AnguloLlanta += _velocidadActual * (float)gameTime.ElapsedGameTime.TotalSeconds * 2f;
-            }
+            MoverAuto(gameTime);
         }
-
-
-
 
         public override void Draw(SpriteBatch spriteBatch)
         {

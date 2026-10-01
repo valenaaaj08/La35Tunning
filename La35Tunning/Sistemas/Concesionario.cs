@@ -16,13 +16,11 @@ namespace La35Tunning.Sistemas
         {
             _catalogo = new List<Auto>();
 
-            // Usamos el Factory para crear los autos del catálogo
             Auto autoGol = AutoFactory.CrearGol(content, texturaLlantaDefault);
             Auto autoUno = AutoFactory.CrearUno(content, texturaLlantaDefault);
             Auto autoClio = AutoFactory.CrearClio(content, texturaLlantaDefault);
             Auto autoCorsa = AutoFactory.CrearCorsa(content, texturaLlantaDefault);
 
-            // Los agregamos al catálogo
             _catalogo.Add(autoGol);
             _catalogo.Add(autoUno);
             _catalogo.Add(autoClio);
@@ -34,8 +32,6 @@ namespace La35Tunning.Sistemas
             return _catalogo;
         }
 
-        // 1. Comprar un auto del catálogo. Devuelve un mensaje para mostrarle al jugador
-        // (así la pantalla no tiene que andar armando los textos de éxito/error, se los pedimos acá).
         public string ComprarAuto(Jugador jugador, int indiceAuto)
         {
             if (indiceAuto < 0 || indiceAuto >= _catalogo.Count)
@@ -49,15 +45,11 @@ namespace La35Tunning.Sistemas
             jugador.RestarDinero(autoAComprar.Precio);
             jugador.AgregarAutoComprado(autoAComprar);
 
-            // Una vez comprado, sale de la vidriera: cada auto del catálogo se vende una sola vez.
             _catalogo.RemoveAt(indiceAuto);
 
             return $"Compraste el {autoAComprar.Modelo}.";
         }
 
-        // 2. Vender un auto puntual del garage del jugador (no necesariamente el que tiene equipado).
-        // NOTA: por ahora solo se paga el 50% del precio base del auto, sin sumar el valor de las
-        // piezas instaladas. Es una limitación conocida, documentada en el README/Changelog.
         public string VenderAuto(Jugador jugador, Auto auto)
         {
             if (auto == null || !jugador.AutosComprados.Contains(auto))

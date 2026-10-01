@@ -41,7 +41,6 @@ namespace La35Tunning
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
-            // Obtener la resolución actual del monitor
             int anchoMonitor = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
             int altoMonitor = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
             _graphics.PreferredBackBufferWidth = anchoMonitor;
@@ -52,17 +51,12 @@ namespace La35Tunning
             IsMouseVisible = true;
         }
 
-        // Se ejecuta UNA sola vez al arrancar, antes de cargar cualquier imagen/sonido.
-        // Acá va solo lógica y datos que no dependan de Content (texturas, fuentes, etc).
         protected override void Initialize()
         {
             _jugador = new Jugador("Valentin", 7000000m);
             base.Initialize();
         }
 
-        // Se ejecuta UNA sola vez, justo después de Initialize().
-        // Acá SÍ está garantizado que la GraphicsDevice (grafica) está lista, por eso todo lo
-        // que use Content.Load<>() (texturas, fuentes, sonidos) va en este método.
         protected override void LoadContent()
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
@@ -72,7 +66,6 @@ namespace La35Tunning
 
             try
             {
-                // Intentamos cargar la fuente principal
                 _fuente = Content.Load<SpriteFont>("FuentePrincipal");
             }
             catch (Exception ex)
@@ -82,33 +75,8 @@ namespace La35Tunning
 
             try
             {
-                // Inicializamos el menú y la pantalla del taller
-                _menuPrincipal = new MenuPrincipal(Content, GraphicsDevice);
-                _musicaMenu = Content.Load<Song>("Sonidos/Fiat 600 - Tussiwarriors");
-                MediaPlayer.IsRepeating = true;
-                MediaPlayer.Volume = 0.7f;
-                MediaPlayer.Play(_musicaMenu);
-                
-                // El jugador comienza sin auto - debe comprar uno en el concesionario
-                _pantallaTaller = new PantallaTaller(Content, _jugador);
-                _pantallaConfiguracion = new PantallaConfiguracion(GraphicsDevice);
-
-                Texture2D texturaLlantaDefault = Content.Load<Texture2D>("llantaDefault");
-                _concesionarioSistema = new Sistemas.Concesionario(Content, texturaLlantaDefault);
-                _pantallaConcesionario = new PantallaConcesionario(_concesionarioSistema, _jugador, GraphicsDevice);
-
-                Auto autoRival = AutoFactory.CrearGol(Content, texturaLlantaDefault);
-                _texturaPixel = new Texture2D(GraphicsDevice, 1, 1);
-                _texturaPixel.SetData(new[] { Color.White });
-
-                _pantallaCarrera = new PantallaCarrera(null, autoRival, new Sistemas.Semaforo(
-                    Content.Load<Texture2D>("semaforo1"), Content.Load<Texture2D>("semaforo2"),
-                    Content.Load<Texture2D>("semaforo3"), Content.Load<Texture2D>("semaforo4"),
-                    Content.Load<Texture2D>("semaforo5"), Content.Load<Texture2D>("semaforoFallida")),
-                    200f, 400f, _texturaPixel, _jugador);
-
-                _camara = new Sistemas.Camera2D(GraphicsDevice);
-
+                CrearPantallaMenuYMusica();
+                CrearPantallasDelJuego();
             }
             catch (Exception ex)
             {
@@ -118,64 +86,8 @@ namespace La35Tunning
 
         protected override void Update(GameTime gameTime)
         {
-            // Actualizar tiempo del mensaje de error
-            if (_tiempoMensajeError > 0f)
-                _tiempoMensajeError -= (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-            switch (_estadoActual)
-            {
-                case EstadoJuego.MenuPrincipal:
-                    if (_menuPrincipal != null)
-                    {
-                        _menuPrincipal.Update(gameTime);
-                        if (_menuPrincipal.SiguienteEstado.HasValue)
-                        {
-                            CambiarEstado(_menuPrincipal.SiguienteEstado.Value);
-                        }
-                    }
-                    break;
-
-                case EstadoJuego.Taller:
-                    try
-                    {
-                        if (_pantallaTaller != null)
-                        {
-                            _pantallaTaller.Update(gameTime);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine("Error en Update de Taller: " + ex.Message);
-                    }
-
-                    if (Keyboard.GetState().IsKeyDown(Keys.Escape))
-                    {
-                        CambiarEstado(EstadoJuego.MenuPrincipal);
-                    }
-                    break;
-
-                case EstadoJuego.Concesionario:
-                    _pantallaConcesionario?.Update(gameTime);
-                    if (Keyboard.GetState().IsKeyDown(Keys.Escape))
-                    {
-                        CambiarEstado(EstadoJuego.MenuPrincipal);
-                    }
-                    break;
-
-                case EstadoJuego.Carrera:
-                    _pantallaCarrera?.Update(gameTime);
-                    if (Keyboard.GetState().IsKeyDown(Keys.Escape))
-                        CambiarEstado(EstadoJuego.MenuPrincipal);
-                    break;
-
-                case EstadoJuego.Configuracion:
-                    _pantallaConfiguracion?.Update(gameTime);
-                    if (_pantallaConfiguracion != null && _pantallaConfiguracion.DebeVolver)
-                        CambiarEstado(EstadoJuego.MenuPrincipal);
-                    break;
-
-            }
-
+            ActualizarTiempoDeErrores(gameTime);
+            ActualizarEstadoActual(gameTime);
             base.Update(gameTime);
         }
 
@@ -183,116 +95,275 @@ namespace La35Tunning
         {
             GraphicsDevice.Clear(Color.Black);
 
-
-
-            if (_fuente != null)
-            {
-                switch (_estadoActual)
-                {
-                    case EstadoJuego.MenuPrincipal:
-                        _spriteBatch.Begin();
-                        if (_menuPrincipal != null)
-                        {
-                            _menuPrincipal.Draw(_spriteBatch, _fuente, GraphicsDevice);
-                        }
-                        
-                        // Mostrar mensaje de error temporal si existe
-                        if (_tiempoMensajeError > 0f)
-                        {
-                            _spriteBatch.Draw(_texturaPixel, new Rectangle(0, 0, GraphicsDevice.Viewport.Width, 100), Color.Black * 0.7f);
-                            _spriteBatch.DrawString(_fuente, _mensajeError, new Vector2(50, 20), Color.Red);
-                        }
-                        break;
-
-                    case EstadoJuego.Taller:
-                        _spriteBatch.Begin();
-                        if (_pantallaTaller != null)
-                        {
-                            try
-                            {
-                                _pantallaTaller.Draw(_spriteBatch, _fuente);
-                            }
-                            catch (Exception ex)
-                            {
-                                _spriteBatch.DrawString(_fuente, "Error en Pantalla Taller: " + ex.Message, new Vector2(50, 50), Color.Red);
-                            }
-                        }
-                        else
-                        {
-                            _spriteBatch.DrawString(_fuente, "Pantalla Taller no inicializada", new Vector2(200, 200), Color.Yellow);
-                        }
-                        break;
-
-                    case EstadoJuego.Concesionario:
-                        _spriteBatch.Begin();
-                        _pantallaConcesionario?.Draw(_spriteBatch, _fuente, GraphicsDevice);
-                        break;
-
-                    case EstadoJuego.Carrera:
-                        if (_pantallaCarrera != null && _camara != null && _jugador.AutoActual != null)
-                        {
-                            _camara.Update(_jugador.AutoActual.Posicion);
-
-                            _spriteBatch.Begin(transformMatrix: _camara.Transform);
-                            _pantallaCarrera.Draw(_spriteBatch);
-                            _spriteBatch.End();
-
-                            _spriteBatch.Begin();
-                            _pantallaCarrera.DibujarHud(_spriteBatch, _fuente);
-                        }
-                        else if (_pantallaCarrera != null && _jugador.AutoActual == null)
-                        {
-                            _spriteBatch.Begin();
-                            // Mostrar mensaje de error si se intenta correr sin auto
-                            string mensajeError = "¡No se puede correr sin auto, wachin!";
-                            Vector2 tamañoTexto = _fuente.MeasureString(mensajeError);
-                            int ancho = GraphicsDevice.Viewport.Width;
-                            int alto = GraphicsDevice.Viewport.Height;
-                            Vector2 posicion = new Vector2(
-                                (ancho - tamañoTexto.X) / 2,
-                                (alto - tamañoTexto.Y) / 2);
-                            
-                            // Fondo semi-transparente
-                            _texturaPixel.SetData(new[] { Color.Black });
-                            _spriteBatch.Draw(_texturaPixel, new Rectangle(0, 0, ancho, alto), Color.Black * 0.5f);
-                            
-                            // Texto de error en rojo
-                            _spriteBatch.DrawString(_fuente, mensajeError, posicion, Color.Red);
-                            _spriteBatch.DrawString(_fuente, "Presiona ESC para volver", 
-                                new Vector2((ancho - _fuente.MeasureString("Presiona ESC para volver").X) / 2, posicion.Y + 80), 
-                                Color.White);
-                        }
-                        break;
-
-                    case EstadoJuego.Configuracion:
-                        _spriteBatch.Begin();
-                        _pantallaConfiguracion?.Draw(_spriteBatch, _fuente, GraphicsDevice);
-                        break;
-                }
-            }
-            else
+            if (_fuente == null)
             {
                 GraphicsDevice.Clear(Color.DarkRed);
+                base.Draw(gameTime);
+                return;
             }
 
-            _spriteBatch.End();
+            switch (_estadoActual)
+            {
+                case EstadoJuego.MenuPrincipal:
+                    _spriteBatch.Begin();
+                    DibujarMenu();
+                    _spriteBatch.End();
+                    break;
+
+                case EstadoJuego.Taller:
+                    _spriteBatch.Begin();
+                    DibujarTaller();
+                    _spriteBatch.End();
+                    break;
+
+                case EstadoJuego.Concesionario:
+                    _spriteBatch.Begin();
+                    DibujarConcesionario();
+                    _spriteBatch.End();
+                    break;
+
+                case EstadoJuego.Carrera:
+                    DibujarCarrera();
+                    break;
+
+                case EstadoJuego.Configuracion:
+                    _spriteBatch.Begin();
+                    DibujarConfiguracion();
+                    _spriteBatch.End();
+                    break;
+            }
 
             base.Draw(gameTime);
         }
 
+        private void CrearPantallaMenuYMusica()
+        {
+            _menuPrincipal = new MenuPrincipal(Content, GraphicsDevice);
+            _musicaMenu = Content.Load<Song>("Sonidos/Fiat 600 - Tussiwarriors");
+            MediaPlayer.IsRepeating = true;
+            MediaPlayer.Volume = 0.7f;
+            MediaPlayer.Play(_musicaMenu);
+        }
+
+        private void CrearPantallasDelJuego()
+        {
+            _pantallaTaller = new PantallaTaller(Content, _jugador);
+            _pantallaConfiguracion = new PantallaConfiguracion(GraphicsDevice);
+
+            Texture2D texturaLlantaDefault = Content.Load<Texture2D>("llantaDefault");
+            _concesionarioSistema = new Sistemas.Concesionario(Content, texturaLlantaDefault);
+            _pantallaConcesionario = new PantallaConcesionario(_concesionarioSistema, _jugador, GraphicsDevice);
+
+            Auto autoRival = AutoFactory.CrearGol(Content, texturaLlantaDefault);
+            _texturaPixel = new Texture2D(GraphicsDevice, 1, 1);
+            _texturaPixel.SetData(new[] { Color.White });
+
+            _pantallaCarrera = new PantallaCarrera(
+                null,
+                autoRival,
+                new Sistemas.Semaforo(
+                    Content.Load<Texture2D>("semaforo1"),
+                    Content.Load<Texture2D>("semaforo2"),
+                    Content.Load<Texture2D>("semaforo3"),
+                    Content.Load<Texture2D>("semaforo4"),
+                    Content.Load<Texture2D>("semaforo5"),
+                    Content.Load<Texture2D>("semaforoFallida")),
+                200f,
+                400f,
+                _texturaPixel,
+                _jugador);
+
+            _camara = new Sistemas.Camera2D(GraphicsDevice);
+        }
+
+        private void ActualizarTiempoDeErrores(GameTime gameTime)
+        {
+            if (_tiempoMensajeError > 0f)
+            {
+                _tiempoMensajeError -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+            }
+        }
+
+        private void ActualizarEstadoActual(GameTime gameTime)
+        {
+            switch (_estadoActual)
+            {
+                case EstadoJuego.MenuPrincipal:
+                    ActualizarMenuPrincipal(gameTime);
+                    break;
+
+                case EstadoJuego.Taller:
+                    ActualizarTaller(gameTime);
+                    break;
+
+                case EstadoJuego.Concesionario:
+                    ActualizarConcesionario(gameTime);
+                    break;
+
+                case EstadoJuego.Carrera:
+                    ActualizarCarrera(gameTime);
+                    break;
+
+                case EstadoJuego.Configuracion:
+                    ActualizarConfiguracion(gameTime);
+                    break;
+            }
+        }
+
+        private void ActualizarMenuPrincipal(GameTime gameTime)
+        {
+            if (_menuPrincipal == null)
+                return;
+
+            _menuPrincipal.Update(gameTime);
+
+            if (_menuPrincipal.SiguienteEstado.HasValue)
+            {
+                CambiarEstado(_menuPrincipal.SiguienteEstado.Value);
+            }
+        }
+
+        private void ActualizarTaller(GameTime gameTime)
+        {
+            try
+            {
+                _pantallaTaller?.Update(gameTime);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Error en Update de Taller: " + ex.Message);
+            }
+
+            if (Keyboard.GetState().IsKeyDown(Keys.Escape))
+            {
+                CambiarEstado(EstadoJuego.MenuPrincipal);
+            }
+        }
+
+        private void ActualizarConcesionario(GameTime gameTime)
+        {
+            _pantallaConcesionario?.Update(gameTime);
+
+            if (Keyboard.GetState().IsKeyDown(Keys.Escape))
+            {
+                CambiarEstado(EstadoJuego.MenuPrincipal);
+            }
+        }
+
+        private void ActualizarCarrera(GameTime gameTime)
+        {
+            _pantallaCarrera?.Update(gameTime);
+
+            if (Keyboard.GetState().IsKeyDown(Keys.Escape))
+            {
+                CambiarEstado(EstadoJuego.MenuPrincipal);
+            }
+        }
+
+        private void ActualizarConfiguracion(GameTime gameTime)
+        {
+            _pantallaConfiguracion?.Update(gameTime);
+
+            if (_pantallaConfiguracion != null && _pantallaConfiguracion.DebeVolver)
+            {
+                CambiarEstado(EstadoJuego.MenuPrincipal);
+            }
+        }
+
+        private void DibujarMenu()
+        {
+            if (_menuPrincipal != null)
+            {
+                _menuPrincipal.Draw(_spriteBatch, _fuente, GraphicsDevice);
+            }
+
+            if (_tiempoMensajeError > 0f)
+            {
+                _spriteBatch.Draw(_texturaPixel, new Rectangle(0, 0, GraphicsDevice.Viewport.Width, 100), Color.Black * 0.7f);
+                _spriteBatch.DrawString(_fuente, _mensajeError, new Vector2(50, 20), Color.Red);
+            }
+        }
+
+        private void DibujarTaller()
+        {
+            if (_pantallaTaller == null)
+            {
+                _spriteBatch.DrawString(_fuente, "Pantalla Taller no inicializada", new Vector2(200, 200), Color.Yellow);
+                return;
+            }
+
+            try
+            {
+                _pantallaTaller.Draw(_spriteBatch, _fuente);
+            }
+            catch (Exception ex)
+            {
+                _spriteBatch.DrawString(_fuente, "Error en Pantalla Taller: " + ex.Message, new Vector2(50, 50), Color.Red);
+            }
+        }
+
+        private void DibujarConcesionario()
+        {
+            _pantallaConcesionario?.Draw(_spriteBatch, _fuente, GraphicsDevice);
+        }
+
+        private void DibujarCarrera()
+        {
+            if (_pantallaCarrera == null)
+                return;
+
+            if (_camara != null && _jugador.AutoActual != null)
+            {
+                _camara.Update(_jugador.AutoActual.Posicion);
+
+                _spriteBatch.Begin(transformMatrix: _camara.Transform);
+                _pantallaCarrera.Draw(_spriteBatch);
+                _spriteBatch.End();
+
+                _spriteBatch.Begin();
+                _pantallaCarrera.DibujarHud(_spriteBatch, _fuente);
+                _spriteBatch.End();
+                return;
+            }
+
+            string mensajeError = "¡No se puede correr sin auto, wachin!";
+            Vector2 tamanoTexto = _fuente.MeasureString(mensajeError);
+            int ancho = GraphicsDevice.Viewport.Width;
+            int alto = GraphicsDevice.Viewport.Height;
+            Vector2 posicion = new Vector2((ancho - tamanoTexto.X) / 2, (alto - tamanoTexto.Y) / 2);
+
+            _texturaPixel.SetData(new[] { Color.Black });
+            _spriteBatch.Begin();
+            _spriteBatch.Draw(_texturaPixel, new Rectangle(0, 0, ancho, alto), Color.Black * 0.5f);
+            _spriteBatch.DrawString(_fuente, mensajeError, posicion, Color.Red);
+            _spriteBatch.DrawString(_fuente, "Presiona ESC para volver",
+                new Vector2((ancho - _fuente.MeasureString("Presiona ESC para volver").X) / 2, posicion.Y + 80),
+                Color.White);
+            _spriteBatch.End();
+        }
+
+        private void DibujarConfiguracion()
+        {
+            _pantallaConfiguracion?.Draw(_spriteBatch, _fuente, GraphicsDevice);
+        }
+
+        private void MostrarErrorPantalla(string mensaje)
+        {
+            _mensajeError = mensaje;
+            _tiempoMensajeError = 3f;
+            System.Diagnostics.Debug.WriteLine(mensaje);
+        }
+
         private void CambiarEstado(EstadoJuego nuevoEstado)
         {
-            // Validar que el jugador tenga un auto antes de entrar a carrera
             if (nuevoEstado == EstadoJuego.Carrera)
             {
                 if (_jugador.AutoActual == null)
                 {
-                    // No cambiar estado, el jugador debe comprar un auto primero
-                    _mensajeError = "¡No se puede correr sin auto, wachin!";
-                    _tiempoMensajeError = 3f;
-                    System.Diagnostics.Debug.WriteLine("Necesitas comprar un auto primero.");
+                    MostrarErrorPantalla("¡No se puede correr sin auto, wachin!");
                     return;
                 }
+
                 if (_pantallaCarrera != null)
                 {
                     _pantallaCarrera.CambiarAutoJugador(_jugador.AutoActual);
@@ -323,9 +394,16 @@ namespace La35Tunning
             }
 
             _estadoActual = nuevoEstado;
-            
-            // Reiniciar pantalla de configuración si volvemos a ella
+
             if (nuevoEstado == EstadoJuego.Configuracion && _pantallaConfiguracion != null)
+            {
+                _pantallaConfiguracion.Reiniciar();
+            }
+        }
+
+        private void ReiniciarPantallaSiHaceFalta()
+        {
+            if (_pantallaConfiguracion != null && _estadoActual == EstadoJuego.Configuracion)
             {
                 _pantallaConfiguracion.Reiniciar();
             }

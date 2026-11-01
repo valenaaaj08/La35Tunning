@@ -10,6 +10,7 @@ namespace La35Tunning.Sistemas
     {
         private List<Componente> _catalogoPiezas = new List<Componente>();
         private List<Texture2D> _catalogoLlantas = new List<Texture2D>();
+        private List<string> _nombresLlantas = new List<string>();
 
         public Taller(ContentManager content)
         {
@@ -19,6 +20,13 @@ namespace La35Tunning.Sistemas
             _catalogoLlantas.Add(content.Load<Texture2D>("Llanta3"));
             _catalogoLlantas.Add(content.Load<Texture2D>("Llanta4"));
             _catalogoLlantas.Add(content.Load<Texture2D>("Llanta5"));
+
+            _nombresLlantas.Add("Llanta Original");
+            _nombresLlantas.Add("Luna Negra");
+            _nombresLlantas.Add("Tornado");
+            _nombresLlantas.Add("Furia 500");
+            _nombresLlantas.Add("Rayo");
+            _nombresLlantas.Add("Nitro Pro");
 
             _catalogoPiezas.Add(new Motor("Motor Stage 1", 1.10f, 40000));
             _catalogoPiezas.Add(new Motor("Motor Stage 2", 1.20f, 90000));
@@ -40,6 +48,7 @@ namespace La35Tunning.Sistemas
 
         public List<Componente> CatalogoPiezas { get { return _catalogoPiezas; } }
         public List<Texture2D> CatalogoLlantas { get { return _catalogoLlantas; } }
+        public List<string> NombresLlantas { get { return _nombresLlantas; } }
 
         public bool InstalarPieza(Auto auto, int indicePieza, Jugador jugador)
         {

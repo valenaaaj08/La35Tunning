@@ -141,7 +141,7 @@ namespace La35Tunning
             _menuPrincipal = new MenuPrincipal(Content, GraphicsDevice);
             _musicaMenu = Content.Load<Song>("Sonidos/Fiat 600 - Tussiwarriors");
             MediaPlayer.IsRepeating = true;
-            MediaPlayer.Volume = 0.7f;
+            MediaPlayer.Volume = 0f;
             MediaPlayer.Play(_musicaMenu);
         }
 
@@ -171,6 +171,8 @@ namespace La35Tunning
                 200f,
                 400f,
                 _texturaPixel,
+                Content.Load<Texture2D>("Velocimetro"),
+                Content.Load<Texture2D>("Aguja_Velocimetro"),
                 _jugador);
 
             _camara = new Sistemas.Camera2D(GraphicsDevice);

@@ -23,10 +23,10 @@ namespace La35Tunning.Sistemas
         private Texture2D _texturaVerde;
         private Texture2D _texturaFallida;
 
-        private const float DuracionLuz = 0.6f;
+        private const float DuracionLuz = 1.0f;
 
-        private const float EsperaVerdeMinima = 0.8f;
-        private const float EsperaVerdeMaxima = 2.2f;
+        private const float EsperaVerdeMinima = 1.6f;
+        private const float EsperaVerdeMaxima = 3.5f;
 
         private float _tiempoRestanteEnEstado;
         private readonly Random _random = new Random();
@@ -123,7 +123,7 @@ namespace La35Tunning.Sistemas
                 case EstadoSemaforo.Luz2: return "2";
                 case EstadoSemaforo.Luz3: return "1";
                 case EstadoSemaforo.Luz4: return "";
-                case EstadoSemaforo.Verde: return "¡ARRANCAR!";
+                case EstadoSemaforo.Verde: return "¡VERDE - ARRANCAR!";
                 case EstadoSemaforo.Fallida: return "SALIDA ANTICIPADA";
                 default: return "";
             }

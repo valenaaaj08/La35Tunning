@@ -14,7 +14,7 @@ namespace La35Tunning.Escenas
         private MouseState _mouseAnterior;
         private KeyboardState _tecladoAnterior;
         private bool _entradaInicializada;
-        private int _volumen = 70;
+        private int _volumen = 0;
 
         public bool DebeVolver { get; private set; }
 
@@ -23,6 +23,8 @@ namespace La35Tunning.Escenas
             _graphicsDevice = graphicsDevice;
             _texturaPixel = new Texture2D(graphicsDevice, 1, 1);
             _texturaPixel.SetData(new[] { Color.White });
+            SoundEffect.MasterVolume = 0f;
+            MediaPlayer.Volume = 0f;
         }
 
         public void Reiniciar()

@@ -1,7 +1,9 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System;
 using System.Collections.Generic;
 using La35Tunning.Modelos;
+using La35Tunning.Sistemas;
 
 namespace La35Tunning.Entidades
 {
@@ -33,6 +35,11 @@ namespace La35Tunning.Entidades
         private float _posicionLlantaTraseraX = 0.82f;
         private float _posicionLlantasY = 0.64f;
 
+        // NUEVO: diámetro de la llanta como fracción del ANCHO de la imagen del auto.
+        // Cada sprite tiene los pasaruedas de distinto tamaño, así que cada auto
+        // necesita el suyo (se mide una vez y se pasa desde AutoFactory).
+        private float _diametroLlanta;
+
         public int Precio { get { return _precio; } }
         public string Modelo { get { return _modelo; } }
         public Texture2D TexturaAuto { get { return _texturaAuto; } }
@@ -45,8 +52,20 @@ namespace La35Tunning.Entidades
         public Intercooler IntercoolerActual { get { return _intercoolerActual; } }
         public Neumatico NeumaticoActual { get { return _neumaticoActual; } }
 
+        // NUEVO: datos que necesitan las pantallas para mostrar estadísticas y la llanta puesta.
+        public float VelocidadMaximaBase { get { return _velocidadMaximaBase; } }
+        public float AceleracionBase { get { return _aceleracionBase; } }
+        public float VelocidadMaximaReal { get { return CalcularVelocidadMaximaReal(); } }
+        public float AceleracionReal { get { return CalcularAceleracionReal(); } }
+        public Texture2D LlantaDelantera { get { return _llantaDelantera; } }
+
         public const float DistanciaMeta = 2800f;
         private const float PosicionLargada = 100f;
+
+        // NUEVO: para que la pista sepa dónde pintar la línea de largada y la de meta.
+        public const float AnchoEnCarrera = AnchoDeseadoEnPantalla;
+        public const float FrenteEnLargada = PosicionLargada + AnchoDeseadoEnPantalla;   // trompa del auto al largar
+        public const float FrenteEnMeta = FrenteEnLargada + DistanciaMeta;               // trompa del auto al llegar
 
         public bool Descalificado { get; private set; } = false;
         public bool LlegoAMeta { get; private set; } = false;
@@ -61,7 +80,8 @@ namespace La35Tunning.Entidades
         }
 
         public Auto(string modelo, float velocidadBase, float aceleracionBase, int precio, Texture2D textura, Texture2D texturaTaller = null,
-                    float posicionDelanteraX = 0.24f, float posicionTraseraX = 0.82f, float posicionLlantasY = 0.64f)
+                    float posicionDelanteraX = 0.24f, float posicionTraseraX = 0.82f, float posicionLlantasY = 0.64f,
+                    float diametroLlanta = 0f)
         {
             _modelo = modelo;
             _velocidadMaximaBase = velocidadBase;
@@ -74,6 +94,9 @@ namespace La35Tunning.Entidades
             _posicionLlantaDelanteraX = posicionDelanteraX;
             _posicionLlantaTraseraX = posicionTraseraX;
             _posicionLlantasY = posicionLlantasY;
+
+            // Si no nos pasan el diámetro, usamos la medida vieja (39.68 px sobre un auto de 300 px).
+            _diametroLlanta = diametroLlanta > 0f ? diametroLlanta : DiametroLlantaEnPantalla / AnchoDeseadoEnPantalla;
 
             _motorActual = new Motor("Motor de Fábrica", 1.0f, 0);
             _turboActual = new Turbo("Sin Turbo (Stock)", 1.0f, 0);
@@ -171,6 +194,8 @@ namespace La35Tunning.Entidades
                 return;
 
             _posicion.X += distancia;
+            _velocidadActual = distancia;   // NUEVO: así el rival también "tiene velocidad" (humo, HUD)
+            GirarLlantas(distancia);        // NUEVO: antes las ruedas del rival no giraban
 
             if (_posicion.X >= PosicionLargada + DistanciaMeta)
             {
@@ -187,6 +212,7 @@ namespace La35Tunning.Entidades
         {
             _posicion.X = PosicionLargada;
             _velocidadActual = 0f;
+            _ultimoGiro = 0f;
             Descalificado = false;
             LlegoAMeta = false;
         }
@@ -233,7 +259,14 @@ namespace La35Tunning.Entidades
 
             if (_velocidadActual != 0)
             {
-                AnguloLlanta += _velocidadActual * (float)gameTime.ElapsedGameTime.TotalSeconds * 2f;
+                // ANTES: AnguloLlanta += velocidad * dt * 2  (giraba mucho más lento de lo que avanzaba,
+                //        parecía que las ruedas "patinaban" sobre el asfalto).
+                // AHORA: una rueda que rueda sin patinar gira (distancia / radio) radianes.
+                GirarLlantas(_velocidadActual);
+            }
+            else
+            {
+                _ultimoGiro = 0f;
             }
 
             if (_posicion.X >= PosicionLargada + DistanciaMeta)
@@ -292,52 +325,163 @@ namespace La35Tunning.Entidades
             MoverAuto(gameTime);
         }
 
-        public override void Draw(SpriteBatch spriteBatch)
+        // ==================================================================
+        // DIBUJO (reescrito para que las llantas queden en su lugar y giren bien)
+        // ==================================================================
+
+        // Más de ~24 grados por cuadro y el ojo ve el "efecto rueda de carreta"
+        // (parece que la rueda gira para atrás). Por eso limitamos el giro visual
+        // y a alta velocidad dibujamos un poco de desenfoque de movimiento.
+        private const float GiroVisualMaximoPorCuadro = 0.42f;
+        private float _ultimoGiro;
+
+        /// <summary>Parte visible del sprite (sin el borde transparente que traen las imágenes).</summary>
+        private Rectangle LimitesOpacos { get { return UI.LimitesOpacos(_texturaAuto); } }
+
+        /// <summary>Escala necesaria para que la CARROCERÍA mida "ancho" píxeles.</summary>
+        public float EscalaParaAncho(float ancho)
         {
-            float escala = AnchoDeseadoEnPantalla / _texturaAuto.Width;
-            spriteBatch.Draw(_texturaAuto, _posicion, null, Color.White, 0f, Vector2.Zero, escala, SpriteEffects.FlipHorizontally, 0f);
-
-            if (_llantaDelantera != null && _llantaTrasera != null)
-            {
-                Vector2 posicionRuedaDelantera = _posicion + new Vector2(
-                    _texturaAuto.Width * _posicionLlantaDelanteraX,
-                    _texturaAuto.Height * _posicionLlantasY) * escala;
-                Vector2 posicionRuedaTrasera = _posicion + new Vector2(
-                    _texturaAuto.Width * _posicionLlantaTraseraX,
-                    _texturaAuto.Height * _posicionLlantasY) * escala;
-
-                float escalaLlantaDelantera = DiametroLlantaEnPantalla / _llantaDelantera.Width;
-                float escalaLlantaTrasera = DiametroLlantaEnPantalla / _llantaTrasera.Width;
-
-                Vector2 origenDelantera = new Vector2(_llantaDelantera.Width / 2f, _llantaDelantera.Height / 2f);
-                Vector2 origenTrasera = new Vector2(_llantaTrasera.Width / 2f, _llantaTrasera.Height / 2f);
-
-                spriteBatch.Draw(_llantaDelantera, posicionRuedaDelantera, null, Color.White, AnguloLlanta, origenDelantera, escalaLlantaDelantera, SpriteEffects.None, 0f);
-                spriteBatch.Draw(_llantaTrasera, posicionRuedaTrasera, null, Color.White, AnguloLlanta, origenTrasera, escalaLlantaTrasera, SpriteEffects.None, 0f);
-            }
+            return ancho / LimitesOpacos.Width;
         }
 
+        /// <summary>Radio de la llanta en la carrera (donde el auto mide AnchoDeseadoEnPantalla).</summary>
+        public float RadioLlantaEnCarrera
+        {
+            get { return _diametroLlanta * _texturaAuto.Width * EscalaParaAncho(AnchoDeseadoEnPantalla) / 2f; }
+        }
+
+        /// <summary>
+        /// Hace girar las llantas como si el auto hubiera rodado "distancia" unidades.
+        /// Física: una rueda que no patina gira (distancia / radio) radianes.
+        /// </summary>
+        public void GirarLlantas(float distancia)
+        {
+            float radio = RadioLlantaEnCarrera;
+            if (radio <= 0.01f)
+                return;
+
+            float giro = MathHelper.Clamp(distancia / radio, -GiroVisualMaximoPorCuadro, GiroVisualMaximoPorCuadro);
+            AnguloLlanta = (AnguloLlanta + giro) % MathHelper.TwoPi;
+            _ultimoGiro = Math.Abs(giro);
+        }
+
+        /// <summary>
+        /// Cuánto mide el auto desde el techo hasta donde las ruedas tocan el piso
+        /// (con la escala indicada). Sirve para "apoyar" el auto sobre una línea de piso.
+        /// </summary>
+        public float AlturaHastaPiso(float escala)
+        {
+            Rectangle limites = LimitesOpacos;
+            float fondoCarroceria = limites.Height;
+            float fondoLlanta = _posicionLlantasY * _texturaAuto.Height - limites.Top
+                                + _diametroLlanta * _texturaAuto.Width / 2f;
+            return Math.Max(fondoCarroceria, fondoLlanta) * escala;
+        }
+
+        /// <summary>
+        /// En la carrera: Posicion.X = la cola del auto, Posicion.Y = la línea del piso del carril.
+        /// Así todos los autos quedan apoyados en el asfalto aunque sus imágenes midan distinto.
+        /// </summary>
+        public override void Draw(SpriteBatch spriteBatch)
+        {
+            Vector2 puntoPiso = new Vector2(_posicion.X + AnchoDeseadoEnPantalla / 2f, _posicion.Y);
+            DibujarSobrePiso(spriteBatch, puntoPiso, AnchoDeseadoEnPantalla, Color.White, true);
+        }
+
+        /// <summary>
+        /// Dibuja el auto con su carrocería de "ancho" píxeles, centrado en X sobre
+        /// puntoPiso y con las ruedas tocando puntoPiso.Y.
+        /// </summary>
+        public void DibujarSobrePiso(SpriteBatch spriteBatch, Vector2 puntoPiso, float ancho, Color tinte, bool conSombra = true)
+        {
+            float escala = EscalaParaAncho(ancho);
+            float alto = AlturaHastaPiso(escala);
+
+            if (conSombra)
+            {
+                // Sombra ovalada debajo del auto: lo "pega" al piso.
+                UI.Resplandor(spriteBatch, new Vector2(puntoPiso.X, puntoPiso.Y - 2f),
+                    ancho * 0.58f, Math.Max(8f, ancho * 0.065f), Color.Black * 0.65f);
+            }
+
+            Vector2 esquina = new Vector2(puntoPiso.X - ancho / 2f, puntoPiso.Y - alto);
+            DibujarCompleto(spriteBatch, esquina, escala, tinte, 1f);
+        }
+
+        /// <summary>
+        /// Dibuja el auto lo más grande posible dentro de "area", centrado y apoyado
+        /// en el borde de abajo. Ideal para miniaturas (concesionario) y el taller.
+        /// </summary>
+        public void DibujarEnArea(SpriteBatch spriteBatch, Rectangle area, Color tinte, bool conSombra = true)
+        {
+            Rectangle limites = LimitesOpacos;
+            float escalaPorAncho = area.Width / (float)limites.Width;
+            float escalaPorAlto = area.Height / AlturaHastaPiso(1f);
+            float escala = Math.Min(escalaPorAncho, escalaPorAlto);
+
+            DibujarSobrePiso(spriteBatch, new Vector2(area.Center.X, area.Bottom), limites.Width * escala, tinte, conSombra);
+        }
+
+        /// <summary>
+        /// Se mantiene por compatibilidad con el código anterior:
+        /// "posicion" es la esquina de la imagen COMPLETA (con su borde transparente).
+        /// </summary>
         public void Draw(SpriteBatch spriteBatch, Vector2 posicion, float escalaDibujo, float escalaLlantaDibujo)
         {
-            spriteBatch.Draw(_texturaAuto, posicion, null, Color.White, 0f, Vector2.Zero, escalaDibujo, SpriteEffects.FlipHorizontally, 0f);
+            Rectangle limites = LimitesOpacos;
+            Vector2 esquina = posicion + new Vector2(_texturaAuto.Width - limites.Right, limites.Top) * escalaDibujo;
+            DibujarCompleto(spriteBatch, esquina, escalaDibujo, Color.White, escalaLlantaDibujo);
+        }
 
-            if (_llantaDelantera != null && _llantaTrasera != null)
+        /// <summary>Carrocería + 2 llantas. "esquina" = esquina sup. izq. de la parte visible de la carrocería.</summary>
+        private void DibujarCompleto(SpriteBatch spriteBatch, Vector2 esquina, float escala, Color tinte, float multiplicadorLlanta)
+        {
+            // Dibujamos solo la parte visible (LimitesOpacos) y dada vuelta para que mire a la derecha.
+            spriteBatch.Draw(_texturaAuto, esquina, LimitesOpacos, tinte, 0f, Vector2.Zero, escala,
+                SpriteEffects.FlipHorizontally, 0f);
+
+            if (_llantaDelantera == null || _llantaTrasera == null)
+                return;
+
+            float diametro = _diametroLlanta * _texturaAuto.Width * escala * multiplicadorLlanta;
+
+            // Las llantas se dibujan DESPUÉS de la carrocería, así tapan el pasarueda oscuro
+            // (y en el Fiat Uno tapan las ruedas que ya venían pintadas en la imagen).
+            DibujarLlanta(spriteBatch, _llantaTrasera, CentroLlanta(_posicionLlantaDelanteraX, esquina, escala), diametro, tinte);
+            DibujarLlanta(spriteBatch, _llantaDelantera, CentroLlanta(_posicionLlantaTraseraX, esquina, escala), diametro, tinte);
+        }
+
+        /// <summary>
+        /// Pasa la posición de la llanta (fracción medida sobre la imagen tal como se VE,
+        /// o sea ya dada vuelta) a coordenadas de pantalla.
+        /// </summary>
+        private Vector2 CentroLlanta(float fraccionX, Vector2 esquina, float escala)
+        {
+            Rectangle limites = LimitesOpacos;
+            float xEnImagenDadaVuelta = fraccionX * _texturaAuto.Width;
+            float bordeIzquierdoDadoVuelta = _texturaAuto.Width - limites.Right;
+            float yEnImagen = _posicionLlantasY * _texturaAuto.Height;
+
+            return esquina + new Vector2(xEnImagenDadaVuelta - bordeIzquierdoDadoVuelta, yEnImagen - limites.Top) * escala;
+        }
+
+        private void DibujarLlanta(SpriteBatch spriteBatch, Texture2D llanta, Vector2 centro, float diametro, Color tinte)
+        {
+            Rectangle limites = UI.LimitesOpacos(llanta);
+
+            // El origen es el centro de la llanta: así gira sobre su eje y no "orbita".
+            Vector2 origen = new Vector2(limites.Width / 2f, limites.Height / 2f);
+
+            // Escala distinta en X y en Y: los png de llantas no son cuadrados (ej: 209x226),
+            // así forzamos que la rueda quede redonda y no se bambolee al girar.
+            Vector2 escala = new Vector2(diametro / limites.Width, diametro / limites.Height);
+
+            spriteBatch.Draw(llanta, centro, limites, tinte, AnguloLlanta, origen, escala, SpriteEffects.None, 0f);
+
+            if (_ultimoGiro > 0.2f)
             {
-                Vector2 posicionRuedaDelantera = posicion + new Vector2(
-                    _texturaAuto.Width * _posicionLlantaDelanteraX,
-                    _texturaAuto.Height * _posicionLlantasY) * escalaDibujo;
-                Vector2 posicionRuedaTrasera = posicion + new Vector2(
-                    _texturaAuto.Width * _posicionLlantaTraseraX,
-                    _texturaAuto.Height * _posicionLlantasY) * escalaDibujo;
-
-                float escalaLlantaDelantera = (DiametroLlantaEnPantalla * escalaDibujo * escalaLlantaDibujo) / _llantaDelantera.Width;
-                float escalaLlantaTrasera = (DiametroLlantaEnPantalla * escalaDibujo * escalaLlantaDibujo) / _llantaTrasera.Width;
-
-                Vector2 origenDelantera = new Vector2(_llantaDelantera.Width / 2f, _llantaDelantera.Height / 2f);
-                Vector2 origenTrasera = new Vector2(_llantaTrasera.Width / 2f, _llantaTrasera.Height / 2f);
-
-                spriteBatch.Draw(_llantaDelantera, posicionRuedaDelantera, null, Color.White, AnguloLlanta, origenDelantera, escalaLlantaDelantera, SpriteEffects.None, 0f);
-                spriteBatch.Draw(_llantaTrasera, posicionRuedaTrasera, null, Color.White, AnguloLlanta, origenTrasera, escalaLlantaTrasera, SpriteEffects.None, 0f);
+                // Desenfoque de movimiento: una copia semitransparente un poquito más atrás en el giro.
+                spriteBatch.Draw(llanta, centro, limites, tinte * 0.4f, AnguloLlanta - _ultimoGiro * 0.5f, origen, escala, SpriteEffects.None, 0f);
             }
         }
     }

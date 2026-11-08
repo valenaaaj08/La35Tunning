@@ -1,0 +1,3763 @@
+diff --git a/CAMBIOS.md b/CAMBIOS.md
+new file mode 100644
+index 0000000..e6f33b5
+--- /dev/null
++++ b/CAMBIOS.md
+@@ -0,0 +1,228 @@
++# Cambios v0.3.0: mejora visual (guía para aprender)
++
++Este archivo explica **qué** se cambió, **por qué** y **qué concepto** hay detrás.
++Todo lo nuevo en el código está marcado con comentarios `// NUEVO`, `// ANTES` / `// AHORA` o `// CAMBIO`.
++
++> **Regla que seguimos:** no se borró la lógica del juego. Las clases `Semaforo`, `Taller`,
++> `Concesionario`, `Jugador` y los componentes quedan **igual**. Se agregaron cosas, y se
++> rehicieron las partes de **dibujo** (los métodos `Draw`) de cada pantalla.
++
++---
++
++## 0. Archivos tocados
++
++| Archivo | Tipo de cambio |
++|---|---|
++| `Sistemas/UI.cs` | **NUEVO**: caja de herramientas de dibujo |
++| `Content/FuenteTitulo.spritefont`, `Content/FuenteNegrita.spritefont` | **NUEVOS**: Arial Bold 40 y 20 |
++| `Content/Content.mgcb` | se agregaron las 2 fuentes y `motor.png`, `turbo.png`, `neumatico.png` |
++| `Entidades/Auto.cs` | ruedas bien puestas y girando, recorte de bordes, métodos de dibujo nuevos |
++| `La35Tunning/Factories/AutoFactory.cs` | medidas exactas de llantas de cada auto |
++| `Escenas/MenuPrincipal.cs` | diseño nuevo, centrado, hover, botón SALIR |
++| `Escenas/PantallaConfiguracion.cs` | ventana centrada con barra de volumen |
++| `Escenas/PantallaConcesionario.cs` | tarjetas con foto, estadísticas, layout centrado |
++| `Escenas/PantallaTaller.cs` | paneles, pestañas, íconos, auto apoyado en el piso |
++| `Escenas/PantallaCarrera.cs` | escenario completo, semáforo, HUD, resultados |
++| `Sistemas/Camara2D.cs` | se agregó `Centro` y `MundoAPantalla()` |
++| `Game1.cs` | conecta todo (fuentes, cámara, botones volver/salir) |
++
++Para ver **cada línea** cambiada: abrí `cambios.diff`, o en Visual Studio usá *Git > Ver cambios*.
++
++---
++
++## 1. `UI.cs`: no repetir código de dibujo
++
++**Problema:** cada pantalla tenía su propio `DibujarBoton`, su propio `_texturaPixel`, sus propios colores.
++
++**Solución:** una clase `static` con todo lo común:
++
++```csharp
++UI.Panel(spriteBatch, rect, 0.9f, UI.Acento);          // panel con sombra y franja de color
++UI.Boton(spriteBatch, rect, "VOLVER", mouseEncima);    // botón con hover
++UI.TextoCentrado(spriteBatch, UI.Titulo, "TALLER", centro, UI.TextoClaro);
++UI.Chip(spriteBatch, pos, "DINERO", UI.Dinero(7000000), UI.Verde);   // "$ 7.000.000"
++```
++
++**Concepto 1, paleta única:** todos los colores están arriba en `UI.cs`. Si querés que el amarillo
++sea naranja, cambiás `UI.Acento` y cambia en todo el juego.
++
++**Concepto 2, alfa premultiplicado:** MonoGame espera que los colores semitransparentes tengan
++R, G y B ya multiplicados por el alfa. Por eso se escribe `Color.Black * 0.5f` (multiplica los 4
++canales) y **no** `new Color(0, 0, 0, 128)`.
++
++**Concepto 3, texturas generadas por código:** `Circulo`, `Brillo` (degradé radial) y
++`DegradeVertical` se crean con `SetData` píxel por píxel, como tu `CrearTexturaEngranaje`.
++Con eso salen las sombras de los autos, el brillo del semáforo, las luces de los faroles, etc.
++
++**Concepto 4, `LimitesOpacos()`:** muchas imágenes traen mucho "aire" transparente alrededor
++(ej: `gol.png` es 1536x1024 pero el auto ocupa 1478x500; `Taller.png` tiene 80 px vacíos a cada lado).
++Esta función busca el rectángulo donde realmente hay dibujo y se usa como `sourceRectangle` al dibujar.
++Así todos los autos y botones miden lo que tienen que medir.
++
++**Concepto 5, `FondoCubriendo()`:** antes los fondos se estiraban a la pantalla. `FondoTaller.jpg`
++es 4:3 y tu monitor 16:9, así que se veía aplastado. Ahora se recorta lo que sobra (como
++`background-size: cover` en CSS) y la imagen mantiene su proporción.
++
++---
++
++## 2. Ruedas bien puestas y girando (`Auto.cs` + `AutoFactory.cs`)
++
++### Qué estaba mal
++1. Todos los autos usaban el **mismo diámetro** de llanta (`39.68`), pero cada sprite tiene pasaruedas de distinto tamaño.
++2. Las posiciones estaban "a ojo" y no tenían en cuenta el borde transparente de cada imagen.
++3. El giro era `velocidad * dt * 2`: la rueda giraba mucho más lento de lo que avanzaba el auto (parecía que patinaba).
++4. El rival avanzaba con `AvanzarDistancia()` y **sus ruedas no giraban nunca**.
++5. Los png de llantas no son cuadrados (ej: 209x226): al rotar, la rueda "bailaba".
++6. El Fiat Uno tiene las ruedas **pintadas** en la imagen: la llanta nueva no las tapaba del todo.
++
++### Cómo se arregló
++- Se midió **cada pasarueda** de cada sprite (con un script que detecta el hueco oscuro/transparente
++  y después verificando visualmente). Los 4 números nuevos en `AutoFactory`:
++  ```csharp
++  //                                                     llanta izq X, llanta der X, centro Y, DIÁMETRO
++  new Auto("Fiat Uno", 7.5f, 0.18f, 3800000, texturaUno, null, 0.180f, 0.778f, 0.746f, 0.143f);
++  ```
++  X y diámetro son fracción del **ancho** de la imagen; Y es fracción del **alto**.
++- **Física del giro:** una rueda que no patina, al avanzar una distancia `d`, gira `d / radio` radianes:
++  ```csharp
++  AnguloLlanta += distancia / radio;
++  ```
++- **Efecto "rueda de carreta":** si una rueda gira más de ~24° por cuadro, el ojo la ve girar para atrás
++  (pasa en las películas). Se limita el giro visual por cuadro y, a alta velocidad, se dibuja una copia
++  semitransparente para dar desenfoque de movimiento.
++- La llanta se dibuja con **escala distinta en X y en Y** (`Vector2`) para que quede perfectamente redonda.
++- `Draw()` en la carrera ahora usa `Posicion.Y` como **línea del piso**: todos los autos apoyan las
++  ruedas en el asfalto aunque sus imágenes midan distinto.
++
++### Métodos nuevos que podés usar
++```csharp
++auto.DibujarSobrePiso(spriteBatch, puntoDelPiso, anchoEnPixeles, Color.White);  // apoyado en un punto
++auto.DibujarEnArea(spriteBatch, rectangulo, Color.White);                        // lo más grande que entre
++auto.GirarLlantas(distancia);
++```
++El `Draw(spriteBatch, posicion, escala, escalaLlanta)` viejo se mantiene para no romper nada.
++
++---
++
++## 3. Menú principal
++
++- **Antes:** posiciones fijas pensadas para una ventana de 800 px (`292 + desplazamientoX`), fondo estirado, botones con distinto "aire" transparente.
++- **Ahora:**
++  - `ActualizarRectangulos()` calcula todo según el tamaño real de la pantalla: **CORRER al medio y más grande**, TALLER a la izquierda, CONCESIONARIO a la derecha.
++  - **Hover animado:** al pasar el mouse el botón crece un 6 %, sube un poquito y aparece un brillo. CORRER "late" suave para invitarte a jugar.
++  - Engranaje en un botón redondo que **gira** con el mouse encima.
++  - **Botón SALIR** (antes no había forma de cerrar el juego en pantalla completa).
++  - **Barra de abajo** con piloto, auto equipado y dinero.
++  - Fundido desde negro al entrar.
++- **`Reiniciar()`**, concepto de "detección de flanco": un clic es *"ahora apretado Y antes suelto"*.
++  Al volver de Configuración con el botón VOLVER, el mouse sigue apretado y el menú lo tomaba como un clic
++  nuevo sobre el botón que estuviera debajo. `Reiniciar()` hace que el primer cuadro solo "lea" el mouse.
++
++## 4. Configuración
++
++Tu código ya tenía `ObtenerDesplazamiento()` pensado para centrar todo, pero devolvía `Vector2.Zero`.
++Ahora devuelve el desplazamiento real para centrar un "lienzo" de 900x500. También se arregló
++`Mover(Rectangle)`, que **solo sumaba X y se olvidaba de Y**.
++
++Lo importante: los rectángulos (`RectBajarVolumen`, `RectVolver`…) se definen **una sola vez** y se
++usan tanto para dibujar como para detectar el clic. Así nunca más "se ve en un lado y se clickea en otro".
++
++Además: barra de volumen clickeable/arrastrable, se dibuja como ventana emergente sobre el menú.
++
++## 5. Concesionario
++
++- Layout centrado y adaptable (en 1366x768 las tarjetas se achican solas).
++- Cada auto en una **tarjeta** con: vidriera iluminada con el auto **con sus llantas puestas** (antes se veía sin ruedas), precio, barras de **velocidad** y **aceleración**.
++- Si no te alcanza: precio en rojo y "Te faltan $ X".
++- El auto equipado tiene borde amarillo y la etiqueta "EN USO".
++- Botón "< VOLVER" (además de ESC). Mensajes en verde (ok) o rojo (error).
++- Las flechas de scroll se movieron al lado del título "EN VENTA".
++
++## 6. Taller
++
++- **Bug grave arreglado:** el auto se dibujaba en `(700, 700)` a escala 1, o sea con el tamaño de su
++  imagen original (¡el Gol mide 1536 px!) y quedaba fuera de pantalla. Ahora se apoya **sobre la mancha
++  oscura del piso** del fondo (se midió dónde está: 50 % horizontal, 80 % vertical) con `UI.PuntoDelFondo()`.
++- Panel izquierdo con **pestañas clickeables** PIEZAS / LLANTAS.
++- Piezas con ícono (`motor.png`, `turbo.png`, `neumatico.png`, ya estaban en Content pero no en el `.mgcb`),
++  precio en amarillo, rojo si no alcanza, "INSTALADA" en verde si ya la tenés.
++- Llantas en grilla con la elegida **girando** como en una vidriera y etiqueta "PUESTA".
++- **Ficha técnica** a la derecha: potencia total, barras de velocidad y aceleración reales, piezas instaladas.
++- Mensajes al instalar ("¡Instalaste Turbo Stage 1!", "No te alcanza la plata…"). Antes no avisaba nada.
++- Concepto: los métodos `RectFilaPieza(i)`, `RectLlanta(i)` y `RectPestanaPiezas()` calculan las posiciones
++  en **un solo lugar** y los usan `Update()` (clics) y `Draw()` (dibujo). Antes el clic usaba
++  `new Rectangle(50, 270 + i * 25, …)`, que no coincidía con lo dibujado.
++
++## 7. Carrera
++
++### Escenario (antes: pantalla negra con rayas grises)
++Se dibuja en **3 capas** (ver `Game1.DibujarCarrera()`):
++1. **Fondo sin cámara:** cielo de atardecer, estrellas, sol y dos filas de edificios con **parallax**
++   (los lejanos se mueven al 12 % de la velocidad, los cercanos al 45 %). Los edificios se generan con
++   `UI.AzarFijo(i, semilla)`: un número "al azar" pero que **siempre da lo mismo para el mismo i**, así
++   la calle no cambia cada cuadro.
++2. **Mundo con cámara:** vereda, faroles con luz, carteles de 100/200/300 m, cartel de LARGADA, pórtico de META,
++   cordones, asfalto con marcas de goma, líneas blancas, divisoria amarilla, línea de largada, **meta a cuadros**,
++   humo de gomas al salir, los dos autos y el guardarraíl.
++3. **HUD sin cámara:** tiempo, metros que faltan, dinero, mini-mapa con los dos autos, velocímetro.
++
++### Cámara centrada
++- Antes: `Zoom = 0.5` fijo y la cámara apuntaba a la **esquina** del auto.
++- Ahora: `Zoom = altoPantalla / 760` (siempre se ven 760 unidades de alto: la pista ocupa lo mismo en
++  cualquier monitor) y el auto queda a un tercio de la pantalla mirando hacia adelante.
++
++### Semáforo (se usan los 6 sprites)
++| Estado | Sprite | Qué muestra |
++|---|---|---|
++| `Luz1` | `semaforo1` | todo apagado, "3" |
++| `Luz2` | `semaforo2` | pre-stage (luz de arriba), "2" |
++| `Luz3` | `semaforo3` | ámbar a medio encender, "1" |
++| `Luz4` | `semaforo4` | todos los ámbar (espera al azar) |
++| `Verde` | `semaforo5` | verde, "¡VERDE - ARRANCAR!" |
++| `Fallida` | `semaforoFallida` | cruz roja, también en la pantalla de resultado |
++
++- **Antes:** cada sprite se estiraba a 220x360, pero miden distinto (99x298, 85x295, 89x300…), así que el
++  semáforo **saltaba y se deformaba** en cada cambio, y el número grande **tapaba las luces**.
++- **Ahora:** un solo semáforo, **parado en la vereda junto a la línea de largada**, recortado a su parte visible,
++  escalado sin deformar y apoyado siempre en la misma base. El número va **al costado**, con un brillo del color
++  de la luz prendida, y la ayuda va abajo.
++- **CAMBIO de jugabilidad (importante):** antes la carrera arrancaba **0.8 s después** del verde y en ese
++  tiempo apretar W no hacía nada: se perdía el **tiempo de reacción**, que según la propuesta es lo más
++  importante. Ahora se arranca en el instante del verde y se mide la reacción.
++
++### Resultado
++Panel con GANASTE / PERDISTE / SALIDA ANTICIPADA, tu tiempo, el del rival, **tiempo de reacción**
++(verde < 0.3 s, amarillo < 0.6 s, rojo más lento) y el premio.
++
++### Detalles
++- `Velocimetro.png` traía un **rectángulo gris semitransparente** pegado; se borra por código al cargar
++  (`LimpiarFondoGrisDelTablero`). Se agregó la velocidad en números.
++- Al entrar a Carrera siempre se reinicia la largada (antes, si volvías al menú y entrabas, quedaba el resultado viejo).
++
++## 8. Bugs arreglados en `Game1.cs`
++- `_texturaPixel.SetData(new[] { Color.Black })` pintaba de negro una textura que **comparten** otras
++  pantallas. Se sacó (con `Color.Black * 0.5f` alcanza).
++- Taller y Concesionario tienen botón VOLVER (`DebeVolver`), igual que Configuración.
++
++---
++
++## Cómo probar (checklist)
++1. Compilar: `dotnet build` (o F5 en Visual Studio). Las fuentes nuevas usan **Arial**, que ya viene en Windows.
++2. Menú: pasar el mouse por los 3 botones, el engranaje y SALIR.
++3. Configuración: subir/bajar volumen con flechas, botones y arrastrando la barra.
++4. Concesionario: comprar un auto, equiparlo, ver la tarjeta "EN USO".
++5. Taller: probar las 6 llantas, instalar piezas, ver la ficha técnica.
++6. Carrera: largar antes del verde (debe salir el semáforo con cruz), largar bien, ganar y perder.
++7. Probar con los 4 autos que las ruedas queden en los pasaruedas y giren.
++
++## Si algo no compila
++Los cambios no se pudieron compilar en el entorno donde se hicieron (no había .NET instalado), así que se
++revisaron a mano con mucho cuidado. Si aparece un error, el mensaje de Visual Studio dice archivo y línea:
++mandámelo y lo arreglamos juntos.
++
++## Ideas para seguir (próximos pasos)
++- **Rival con aceleración real** (hoy avanza a velocidad fija 6.5 desde el primer cuadro) → base para la "IA fantasma".
++- **Vender un auto** no lo devuelve al catálogo del concesionario.
++- El HUD viejo decía "S = FRENAR", pero en carrera frenar es **soltar W** (la S solo funciona en `Auto.Update`, que no se usa en carrera).
++- Sonidos: motor, cambio, semáforo.
++- Red (Etapas 3-4 de la propuesta).
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index eb4d784..7ac15e9 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -68,3 +68,28 @@ Este archivo documenta todos los hitos y mejoras significativas en el desarrollo
+ - No hay fondo/pista real (las marcas de distancia son un parche temporal hasta tener el asset de fondo).
+ - Pantalla de Concesionario no implementada (archivo vacío).
+ - Sin red/multijugador todavía (Etapas 3-4 de la propuesta).
++
++## [0.3.0] - 2026-11-05
++
++### Mejora visual general (detalle completo y explicado en `CAMBIOS.md`)
++- **Nuevo `Sistemas/UI.cs`**: paleta de colores única, paneles, botones con hover, chips, barras, texto con sombra, fondos sin deformar ("cover") y recorte automático del borde transparente de las imágenes.
++- **Nuevas fuentes** `FuenteTitulo` (Arial Bold 40) y `FuenteNegrita` (Arial Bold 20). Se agregaron al `Content.mgcb` junto con `motor.png`, `turbo.png` y `neumatico.png`.
++- **Ruedas**: medidas exactas por auto (posición y diámetro), giro físico `distancia / radio`, el rival también gira las ruedas, llantas siempre redondas, desenfoque de movimiento y autos apoyados sobre la línea del piso.
++- **Menú**: botones centrados (CORRER al medio), hover animado, botón SALIR, barra con piloto/auto/dinero, fondo sin deformar.
++- **Configuración**: centrada (se implementó `ObtenerDesplazamiento()`), barra de volumen clickeable, se muestra sobre el menú.
++- **Concesionario**: tarjetas con foto del auto con llantas, precio y barras de estadísticas, layout centrado, botón VOLVER.
++- **Taller**: auto apoyado sobre la mancha del piso del fondo (antes quedaba fuera de pantalla), pestañas, íconos, ficha técnica, mensajes al instalar.
++- **Carrera**: escenario completo con parallax (cielo, edificios, faroles, carteles de distancia, largada, meta a cuadros, guardarraíl), cámara con zoom según la resolución, humo de gomas, HUD nuevo con mini-mapa, panel de resultado con tiempo de reacción.
++- **Semáforo**: se usan los 6 sprites sin deformarse ni "saltar", parado en la pista junto a la largada, con el texto al costado.
++
++### Correcciones
++- La carrera arrancaba 0.8 s después del verde (se perdía el tiempo de reacción). Ahora arranca en el instante del verde.
++- `Game1` pintaba de negro la textura de píxel compartida (`SetData(Color.Black)`).
++- `Mover(Rectangle)` de Configuración no sumaba el desplazamiento en Y.
++- Un clic al volver de otra pantalla podía activar un botón del menú o instalar una pieza sin querer (se agregó `Reiniciar()`).
++- `Velocimetro.png` tenía un rectángulo gris semitransparente: se limpia al cargar.
++- Al volver a entrar a Carrera siempre se reinicia la largada.
++
++### Pendiente
++- Rival con aceleración real / IA fantasma, sonidos, módulo de red.
++- Compilar y probar en Windows (los cambios se revisaron a mano, sin compilador).
+diff --git a/La35Tunning/Content/Content.mgcb b/La35Tunning/Content/Content.mgcb
+index 5deb0d8..c2610d3 100644
+--- a/La35Tunning/Content/Content.mgcb
++++ b/La35Tunning/Content/Content.mgcb
+@@ -323,4 +323,53 @@
+ /processorParam:ResizeToPowerOfTwo=False
+ /processorParam:MakeSquare=False
+ /processorParam:TextureFormat=Color
+-/build:LogoConfiguracion.png
+\ No newline at end of file
++/build:LogoConfiguracion.png
++#begin FuenteTitulo.spritefont
++/importer:FontDescriptionImporter
++/processor:FontDescriptionProcessor
++/processorParam:PremultiplyAlpha=True
++/processorParam:TextureFormat=Compressed
++/build:FuenteTitulo.spritefont
++
++#begin FuenteNegrita.spritefont
++/importer:FontDescriptionImporter
++/processor:FontDescriptionProcessor
++/processorParam:PremultiplyAlpha=True
++/processorParam:TextureFormat=Compressed
++/build:FuenteNegrita.spritefont
++
++#begin motor.png
++/importer:TextureImporter
++/processor:TextureProcessor
++/processorParam:ColorKeyColor=255,0,255,255
++/processorParam:ColorKeyEnabled=True
++/processorParam:GenerateMipmaps=False
++/processorParam:PremultiplyAlpha=True
++/processorParam:ResizeToPowerOfTwo=False
++/processorParam:MakeSquare=False
++/processorParam:TextureFormat=Color
++/build:motor.png
++
++#begin turbo.png
++/importer:TextureImporter
++/processor:TextureProcessor
++/processorParam:ColorKeyColor=255,0,255,255
++/processorParam:ColorKeyEnabled=True
++/processorParam:GenerateMipmaps=False
++/processorParam:PremultiplyAlpha=True
++/processorParam:ResizeToPowerOfTwo=False
++/processorParam:MakeSquare=False
++/processorParam:TextureFormat=Color
++/build:turbo.png
++
++#begin neumatico.png
++/importer:TextureImporter
++/processor:TextureProcessor
++/processorParam:ColorKeyColor=255,0,255,255
++/processorParam:ColorKeyEnabled=True
++/processorParam:GenerateMipmaps=False
++/processorParam:PremultiplyAlpha=True
++/processorParam:ResizeToPowerOfTwo=False
++/processorParam:MakeSquare=False
++/processorParam:TextureFormat=Color
++/build:neumatico.png
+diff --git a/La35Tunning/Content/FuenteNegrita.spritefont b/La35Tunning/Content/FuenteNegrita.spritefont
+new file mode 100644
+index 0000000..8abb3ac
+--- /dev/null
++++ b/La35Tunning/Content/FuenteNegrita.spritefont
+@@ -0,0 +1,25 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++  Fuente en NEGRITA para La35Tunning (agregada para mejorar la interfaz).
++  Usa la misma "Arial" que FuentePrincipal, que viene instalada en Windows.
++  Tiene las mismas regiones de caracteres (incluye tildes, ñ, ¡ y ¿).
++-->
++<XnaContent xmlns:Graphics="Microsoft.Xna.Framework.Content.Pipeline.Graphics">
++  <Asset Type="Graphics:FontDescription">
++    <FontName>Arial</FontName>
++    <Size>20</Size>
++    <Spacing>0</Spacing>
++    <UseKerning>true</UseKerning>
++    <Style>Bold</Style>
++    <CharacterRegions>
++      <CharacterRegion>
++        <Start>&#32;</Start>
++        <End>&#126;</End>
++      </CharacterRegion>
++      <CharacterRegion>
++        <Start>&#161;</Start>
++        <End>&#255;</End>
++      </CharacterRegion>
++    </CharacterRegions>
++  </Asset>
++</XnaContent>
+diff --git a/La35Tunning/Content/FuenteTitulo.spritefont b/La35Tunning/Content/FuenteTitulo.spritefont
+new file mode 100644
+index 0000000..c01bd2f
+--- /dev/null
++++ b/La35Tunning/Content/FuenteTitulo.spritefont
+@@ -0,0 +1,25 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++  Fuente en NEGRITA para La35Tunning (agregada para mejorar la interfaz).
++  Usa la misma "Arial" que FuentePrincipal, que viene instalada en Windows.
++  Tiene las mismas regiones de caracteres (incluye tildes, ñ, ¡ y ¿).
++-->
++<XnaContent xmlns:Graphics="Microsoft.Xna.Framework.Content.Pipeline.Graphics">
++  <Asset Type="Graphics:FontDescription">
++    <FontName>Arial</FontName>
++    <Size>40</Size>
++    <Spacing>0</Spacing>
++    <UseKerning>true</UseKerning>
++    <Style>Bold</Style>
++    <CharacterRegions>
++      <CharacterRegion>
++        <Start>&#32;</Start>
++        <End>&#126;</End>
++      </CharacterRegion>
++      <CharacterRegion>
++        <Start>&#161;</Start>
++        <End>&#255;</End>
++      </CharacterRegion>
++    </CharacterRegions>
++  </Asset>
++</XnaContent>
+diff --git a/La35Tunning/Entidades/Auto.cs b/La35Tunning/Entidades/Auto.cs
+index da1f858..874b295 100644
+--- a/La35Tunning/Entidades/Auto.cs
++++ b/La35Tunning/Entidades/Auto.cs
+@@ -1,7 +1,9 @@
+ using Microsoft.Xna.Framework;
+ using Microsoft.Xna.Framework.Graphics;
++using System;
+ using System.Collections.Generic;
+ using La35Tunning.Modelos;
++using La35Tunning.Sistemas;
+ 
+ namespace La35Tunning.Entidades
+ {
+@@ -33,6 +35,11 @@ namespace La35Tunning.Entidades
+         private float _posicionLlantaTraseraX = 0.82f;
+         private float _posicionLlantasY = 0.64f;
+ 
++        // NUEVO: diámetro de la llanta como fracción del ANCHO de la imagen del auto.
++        // Cada sprite tiene los pasaruedas de distinto tamaño, así que cada auto
++        // necesita el suyo (se mide una vez y se pasa desde AutoFactory).
++        private float _diametroLlanta;
++
+         public int Precio { get { return _precio; } }
+         public string Modelo { get { return _modelo; } }
+         public Texture2D TexturaAuto { get { return _texturaAuto; } }
+@@ -45,9 +52,21 @@ namespace La35Tunning.Entidades
+         public Intercooler IntercoolerActual { get { return _intercoolerActual; } }
+         public Neumatico NeumaticoActual { get { return _neumaticoActual; } }
+ 
++        // NUEVO: datos que necesitan las pantallas para mostrar estadísticas y la llanta puesta.
++        public float VelocidadMaximaBase { get { return _velocidadMaximaBase; } }
++        public float AceleracionBase { get { return _aceleracionBase; } }
++        public float VelocidadMaximaReal { get { return CalcularVelocidadMaximaReal(); } }
++        public float AceleracionReal { get { return CalcularAceleracionReal(); } }
++        public Texture2D LlantaDelantera { get { return _llantaDelantera; } }
++
+         public const float DistanciaMeta = 2800f;
+         private const float PosicionLargada = 100f;
+ 
++        // NUEVO: para que la pista sepa dónde pintar la línea de largada y la de meta.
++        public const float AnchoEnCarrera = AnchoDeseadoEnPantalla;
++        public const float FrenteEnLargada = PosicionLargada + AnchoDeseadoEnPantalla;   // trompa del auto al largar
++        public const float FrenteEnMeta = FrenteEnLargada + DistanciaMeta;               // trompa del auto al llegar
++
+         public bool Descalificado { get; private set; } = false;
+         public bool LlegoAMeta { get; private set; } = false;
+ 
+@@ -61,7 +80,8 @@ namespace La35Tunning.Entidades
+         }
+ 
+         public Auto(string modelo, float velocidadBase, float aceleracionBase, int precio, Texture2D textura, Texture2D texturaTaller = null,
+-                    float posicionDelanteraX = 0.24f, float posicionTraseraX = 0.82f, float posicionLlantasY = 0.64f)
++                    float posicionDelanteraX = 0.24f, float posicionTraseraX = 0.82f, float posicionLlantasY = 0.64f,
++                    float diametroLlanta = 0f)
+         {
+             _modelo = modelo;
+             _velocidadMaximaBase = velocidadBase;
+@@ -75,6 +95,9 @@ namespace La35Tunning.Entidades
+             _posicionLlantaTraseraX = posicionTraseraX;
+             _posicionLlantasY = posicionLlantasY;
+ 
++            // Si no nos pasan el diámetro, usamos la medida vieja (39.68 px sobre un auto de 300 px).
++            _diametroLlanta = diametroLlanta > 0f ? diametroLlanta : DiametroLlantaEnPantalla / AnchoDeseadoEnPantalla;
++
+             _motorActual = new Motor("Motor de Fábrica", 1.0f, 0);
+             _turboActual = new Turbo("Sin Turbo (Stock)", 1.0f, 0);
+             _transmisionActual = new Transmision("Transmisión de Fábrica", 1.0f, 0);
+@@ -171,6 +194,8 @@ namespace La35Tunning.Entidades
+                 return;
+ 
+             _posicion.X += distancia;
++            _velocidadActual = distancia;   // NUEVO: así el rival también "tiene velocidad" (humo, HUD)
++            GirarLlantas(distancia);        // NUEVO: antes las ruedas del rival no giraban
+ 
+             if (_posicion.X >= PosicionLargada + DistanciaMeta)
+             {
+@@ -187,6 +212,7 @@ namespace La35Tunning.Entidades
+         {
+             _posicion.X = PosicionLargada;
+             _velocidadActual = 0f;
++            _ultimoGiro = 0f;
+             Descalificado = false;
+             LlegoAMeta = false;
+         }
+@@ -233,7 +259,14 @@ namespace La35Tunning.Entidades
+ 
+             if (_velocidadActual != 0)
+             {
+-                AnguloLlanta += _velocidadActual * (float)gameTime.ElapsedGameTime.TotalSeconds * 2f;
++                // ANTES: AnguloLlanta += velocidad * dt * 2  (giraba mucho más lento de lo que avanzaba,
++                //        parecía que las ruedas "patinaban" sobre el asfalto).
++                // AHORA: una rueda que rueda sin patinar gira (distancia / radio) radianes.
++                GirarLlantas(_velocidadActual);
++            }
++            else
++            {
++                _ultimoGiro = 0f;
+             }
+ 
+             if (_posicion.X >= PosicionLargada + DistanciaMeta)
+@@ -292,52 +325,163 @@ namespace La35Tunning.Entidades
+             MoverAuto(gameTime);
+         }
+ 
++        // ==================================================================
++        // DIBUJO (reescrito para que las llantas queden en su lugar y giren bien)
++        // ==================================================================
++
++        // Más de ~24 grados por cuadro y el ojo ve el "efecto rueda de carreta"
++        // (parece que la rueda gira para atrás). Por eso limitamos el giro visual
++        // y a alta velocidad dibujamos un poco de desenfoque de movimiento.
++        private const float GiroVisualMaximoPorCuadro = 0.42f;
++        private float _ultimoGiro;
++
++        /// <summary>Parte visible del sprite (sin el borde transparente que traen las imágenes).</summary>
++        private Rectangle LimitesOpacos { get { return UI.LimitesOpacos(_texturaAuto); } }
++
++        /// <summary>Escala necesaria para que la CARROCERÍA mida "ancho" píxeles.</summary>
++        public float EscalaParaAncho(float ancho)
++        {
++            return ancho / LimitesOpacos.Width;
++        }
++
++        /// <summary>Radio de la llanta en la carrera (donde el auto mide AnchoDeseadoEnPantalla).</summary>
++        public float RadioLlantaEnCarrera
++        {
++            get { return _diametroLlanta * _texturaAuto.Width * EscalaParaAncho(AnchoDeseadoEnPantalla) / 2f; }
++        }
++
++        /// <summary>
++        /// Hace girar las llantas como si el auto hubiera rodado "distancia" unidades.
++        /// Física: una rueda que no patina gira (distancia / radio) radianes.
++        /// </summary>
++        public void GirarLlantas(float distancia)
++        {
++            float radio = RadioLlantaEnCarrera;
++            if (radio <= 0.01f)
++                return;
++
++            float giro = MathHelper.Clamp(distancia / radio, -GiroVisualMaximoPorCuadro, GiroVisualMaximoPorCuadro);
++            AnguloLlanta = (AnguloLlanta + giro) % MathHelper.TwoPi;
++            _ultimoGiro = Math.Abs(giro);
++        }
++
++        /// <summary>
++        /// Cuánto mide el auto desde el techo hasta donde las ruedas tocan el piso
++        /// (con la escala indicada). Sirve para "apoyar" el auto sobre una línea de piso.
++        /// </summary>
++        public float AlturaHastaPiso(float escala)
++        {
++            Rectangle limites = LimitesOpacos;
++            float fondoCarroceria = limites.Height;
++            float fondoLlanta = _posicionLlantasY * _texturaAuto.Height - limites.Top
++                                + _diametroLlanta * _texturaAuto.Width / 2f;
++            return Math.Max(fondoCarroceria, fondoLlanta) * escala;
++        }
++
++        /// <summary>
++        /// En la carrera: Posicion.X = la cola del auto, Posicion.Y = la línea del piso del carril.
++        /// Así todos los autos quedan apoyados en el asfalto aunque sus imágenes midan distinto.
++        /// </summary>
+         public override void Draw(SpriteBatch spriteBatch)
+         {
+-            float escala = AnchoDeseadoEnPantalla / _texturaAuto.Width;
+-            spriteBatch.Draw(_texturaAuto, _posicion, null, Color.White, 0f, Vector2.Zero, escala, SpriteEffects.FlipHorizontally, 0f);
++            Vector2 puntoPiso = new Vector2(_posicion.X + AnchoDeseadoEnPantalla / 2f, _posicion.Y);
++            DibujarSobrePiso(spriteBatch, puntoPiso, AnchoDeseadoEnPantalla, Color.White, true);
++        }
++
++        /// <summary>
++        /// Dibuja el auto con su carrocería de "ancho" píxeles, centrado en X sobre
++        /// puntoPiso y con las ruedas tocando puntoPiso.Y.
++        /// </summary>
++        public void DibujarSobrePiso(SpriteBatch spriteBatch, Vector2 puntoPiso, float ancho, Color tinte, bool conSombra = true)
++        {
++            float escala = EscalaParaAncho(ancho);
++            float alto = AlturaHastaPiso(escala);
+ 
+-            if (_llantaDelantera != null && _llantaTrasera != null)
++            if (conSombra)
+             {
+-                Vector2 posicionRuedaDelantera = _posicion + new Vector2(
+-                    _texturaAuto.Width * _posicionLlantaDelanteraX,
+-                    _texturaAuto.Height * _posicionLlantasY) * escala;
+-                Vector2 posicionRuedaTrasera = _posicion + new Vector2(
+-                    _texturaAuto.Width * _posicionLlantaTraseraX,
+-                    _texturaAuto.Height * _posicionLlantasY) * escala;
++                // Sombra ovalada debajo del auto: lo "pega" al piso.
++                UI.Resplandor(spriteBatch, new Vector2(puntoPiso.X, puntoPiso.Y - 2f),
++                    ancho * 0.58f, Math.Max(8f, ancho * 0.065f), Color.Black * 0.65f);
++            }
+ 
+-                float escalaLlantaDelantera = DiametroLlantaEnPantalla / _llantaDelantera.Width;
+-                float escalaLlantaTrasera = DiametroLlantaEnPantalla / _llantaTrasera.Width;
++            Vector2 esquina = new Vector2(puntoPiso.X - ancho / 2f, puntoPiso.Y - alto);
++            DibujarCompleto(spriteBatch, esquina, escala, tinte, 1f);
++        }
+ 
+-                Vector2 origenDelantera = new Vector2(_llantaDelantera.Width / 2f, _llantaDelantera.Height / 2f);
+-                Vector2 origenTrasera = new Vector2(_llantaTrasera.Width / 2f, _llantaTrasera.Height / 2f);
++        /// <summary>
++        /// Dibuja el auto lo más grande posible dentro de "area", centrado y apoyado
++        /// en el borde de abajo. Ideal para miniaturas (concesionario) y el taller.
++        /// </summary>
++        public void DibujarEnArea(SpriteBatch spriteBatch, Rectangle area, Color tinte, bool conSombra = true)
++        {
++            Rectangle limites = LimitesOpacos;
++            float escalaPorAncho = area.Width / (float)limites.Width;
++            float escalaPorAlto = area.Height / AlturaHastaPiso(1f);
++            float escala = Math.Min(escalaPorAncho, escalaPorAlto);
+ 
+-                spriteBatch.Draw(_llantaDelantera, posicionRuedaDelantera, null, Color.White, AnguloLlanta, origenDelantera, escalaLlantaDelantera, SpriteEffects.None, 0f);
+-                spriteBatch.Draw(_llantaTrasera, posicionRuedaTrasera, null, Color.White, AnguloLlanta, origenTrasera, escalaLlantaTrasera, SpriteEffects.None, 0f);
+-            }
++            DibujarSobrePiso(spriteBatch, new Vector2(area.Center.X, area.Bottom), limites.Width * escala, tinte, conSombra);
+         }
+ 
++        /// <summary>
++        /// Se mantiene por compatibilidad con el código anterior:
++        /// "posicion" es la esquina de la imagen COMPLETA (con su borde transparente).
++        /// </summary>
+         public void Draw(SpriteBatch spriteBatch, Vector2 posicion, float escalaDibujo, float escalaLlantaDibujo)
+         {
+-            spriteBatch.Draw(_texturaAuto, posicion, null, Color.White, 0f, Vector2.Zero, escalaDibujo, SpriteEffects.FlipHorizontally, 0f);
++            Rectangle limites = LimitesOpacos;
++            Vector2 esquina = posicion + new Vector2(_texturaAuto.Width - limites.Right, limites.Top) * escalaDibujo;
++            DibujarCompleto(spriteBatch, esquina, escalaDibujo, Color.White, escalaLlantaDibujo);
++        }
+ 
+-            if (_llantaDelantera != null && _llantaTrasera != null)
+-            {
+-                Vector2 posicionRuedaDelantera = posicion + new Vector2(
+-                    _texturaAuto.Width * _posicionLlantaDelanteraX,
+-                    _texturaAuto.Height * _posicionLlantasY) * escalaDibujo;
+-                Vector2 posicionRuedaTrasera = posicion + new Vector2(
+-                    _texturaAuto.Width * _posicionLlantaTraseraX,
+-                    _texturaAuto.Height * _posicionLlantasY) * escalaDibujo;
++        /// <summary>Carrocería + 2 llantas. "esquina" = esquina sup. izq. de la parte visible de la carrocería.</summary>
++        private void DibujarCompleto(SpriteBatch spriteBatch, Vector2 esquina, float escala, Color tinte, float multiplicadorLlanta)
++        {
++            // Dibujamos solo la parte visible (LimitesOpacos) y dada vuelta para que mire a la derecha.
++            spriteBatch.Draw(_texturaAuto, esquina, LimitesOpacos, tinte, 0f, Vector2.Zero, escala,
++                SpriteEffects.FlipHorizontally, 0f);
+ 
+-                float escalaLlantaDelantera = (DiametroLlantaEnPantalla * escalaDibujo * escalaLlantaDibujo) / _llantaDelantera.Width;
+-                float escalaLlantaTrasera = (DiametroLlantaEnPantalla * escalaDibujo * escalaLlantaDibujo) / _llantaTrasera.Width;
++            if (_llantaDelantera == null || _llantaTrasera == null)
++                return;
+ 
+-                Vector2 origenDelantera = new Vector2(_llantaDelantera.Width / 2f, _llantaDelantera.Height / 2f);
+-                Vector2 origenTrasera = new Vector2(_llantaTrasera.Width / 2f, _llantaTrasera.Height / 2f);
++            float diametro = _diametroLlanta * _texturaAuto.Width * escala * multiplicadorLlanta;
+ 
+-                spriteBatch.Draw(_llantaDelantera, posicionRuedaDelantera, null, Color.White, AnguloLlanta, origenDelantera, escalaLlantaDelantera, SpriteEffects.None, 0f);
+-                spriteBatch.Draw(_llantaTrasera, posicionRuedaTrasera, null, Color.White, AnguloLlanta, origenTrasera, escalaLlantaTrasera, SpriteEffects.None, 0f);
++            // Las llantas se dibujan DESPUÉS de la carrocería, así tapan el pasarueda oscuro
++            // (y en el Fiat Uno tapan las ruedas que ya venían pintadas en la imagen).
++            DibujarLlanta(spriteBatch, _llantaTrasera, CentroLlanta(_posicionLlantaDelanteraX, esquina, escala), diametro, tinte);
++            DibujarLlanta(spriteBatch, _llantaDelantera, CentroLlanta(_posicionLlantaTraseraX, esquina, escala), diametro, tinte);
++        }
++
++        /// <summary>
++        /// Pasa la posición de la llanta (fracción medida sobre la imagen tal como se VE,
++        /// o sea ya dada vuelta) a coordenadas de pantalla.
++        /// </summary>
++        private Vector2 CentroLlanta(float fraccionX, Vector2 esquina, float escala)
++        {
++            Rectangle limites = LimitesOpacos;
++            float xEnImagenDadaVuelta = fraccionX * _texturaAuto.Width;
++            float bordeIzquierdoDadoVuelta = _texturaAuto.Width - limites.Right;
++            float yEnImagen = _posicionLlantasY * _texturaAuto.Height;
++
++            return esquina + new Vector2(xEnImagenDadaVuelta - bordeIzquierdoDadoVuelta, yEnImagen - limites.Top) * escala;
++        }
++
++        private void DibujarLlanta(SpriteBatch spriteBatch, Texture2D llanta, Vector2 centro, float diametro, Color tinte)
++        {
++            Rectangle limites = UI.LimitesOpacos(llanta);
++
++            // El origen es el centro de la llanta: así gira sobre su eje y no "orbita".
++            Vector2 origen = new Vector2(limites.Width / 2f, limites.Height / 2f);
++
++            // Escala distinta en X y en Y: los png de llantas no son cuadrados (ej: 209x226),
++            // así forzamos que la rueda quede redonda y no se bambolee al girar.
++            Vector2 escala = new Vector2(diametro / limites.Width, diametro / limites.Height);
++
++            spriteBatch.Draw(llanta, centro, limites, tinte, AnguloLlanta, origen, escala, SpriteEffects.None, 0f);
++
++            if (_ultimoGiro > 0.2f)
++            {
++                // Desenfoque de movimiento: una copia semitransparente un poquito más atrás en el giro.
++                spriteBatch.Draw(llanta, centro, limites, tinte * 0.4f, AnguloLlanta - _ultimoGiro * 0.5f, origen, escala, SpriteEffects.None, 0f);
+             }
+         }
+     }
+diff --git a/La35Tunning/Escenas/MenuPrincipal.cs b/La35Tunning/Escenas/MenuPrincipal.cs
+index 8fe4a6a..0cd4fd8 100644
+--- a/La35Tunning/Escenas/MenuPrincipal.cs
++++ b/La35Tunning/Escenas/MenuPrincipal.cs
+@@ -3,6 +3,8 @@ using Microsoft.Xna.Framework.Content;
+ using Microsoft.Xna.Framework.Graphics;
+ using Microsoft.Xna.Framework.Input;
+ using System;
++using La35Tunning.Modelos;
++using La35Tunning.Sistemas;
+ 
+ namespace La35Tunning.Escenas
+ {
+@@ -24,8 +26,23 @@ namespace La35Tunning.Escenas
+         private Rectangle _rectBotonTaller = new Rectangle(292, 620, 225, 105);
+         private Rectangle _rectBotonConfiguracion;
+ 
++        // ---- NUEVO: animaciones y datos para el diseño nuevo ----
++        private Rectangle _rectBotonSalir;
++        private Point _posicionMouse;
++        private bool _entradaInicializada;
++        private float _tiempo;                 // tiempo total en el menú (para el "latido" del botón CORRER)
++        private float _tiempoDesdeEntrada;     // para el fundido de entrada
++        private float _rotacionEngranaje;
++        private float _hoverTaller, _hoverCorrer, _hoverConcesionario, _hoverSalir;   // 0 = normal, 1 = mouse encima
++
+         public EstadoJuego? SiguienteEstado { get; private set; }
+ 
++        /// <summary>NUEVO: Game1 lo revisa y, si es true, cierra el juego (antes no había forma de salir).</summary>
++        public bool QuiereSalir { get; private set; }
++
++        /// <summary>NUEVO: para mostrar nombre, auto y plata en la barra de abajo.</summary>
++        public Jugador JugadorActual { get; set; }
++
+         public MenuPrincipal(ContentManager content, GraphicsDevice graphicsDevice)
+         {
+             _graphicsDevice = graphicsDevice;
+@@ -36,21 +53,55 @@ namespace La35Tunning.Escenas
+             _texturaPixel = new Texture2D(graphicsDevice, 1, 1);
+             _texturaPixel.SetData(new[] { Color.White });
+ 
+-            _texturaEngranaje = CrearTexturaEngranaje(graphicsDevice, 64);
++            // Antes 64 px: ahora 128 para que se vea nítido al achicarlo.
++            _texturaEngranaje = CrearTexturaEngranaje(graphicsDevice, 128);
+ 
+             int anchoPantalla = graphicsDevice.PresentationParameters.BackBufferWidth;
+             _rectBotonConfiguracion = new Rectangle(anchoPantalla - 74, 10, 64, 64);
+         }
+ 
++        /// <summary>
++        /// NUEVO: se llama cada vez que volvemos al menú. Evita que el clic que hicimos
++        /// en otra pantalla (por ejemplo en "VOLVER") se tome como clic en un botón del menú.
++        /// </summary>
++        public void Reiniciar()
++        {
++            _entradaInicializada = false;
++            _tiempoDesdeEntrada = 0f;
++            SiguienteEstado = null;
++        }
++
+         public void Update(GameTime gameTime)
+         {
++            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
++            _tiempo += dt;
++            _tiempoDesdeEntrada += dt;
++
+             ActualizarRectangulos();
+             MouseState mouseActual = Mouse.GetState();
++            _posicionMouse = mouseActual.Position;
++
++            SiguienteEstado = null;
++
++            if (!_entradaInicializada)
++            {
++                _mouseAnterior = mouseActual;
++                _entradaInicializada = true;
++                return;
++            }
++
+             bool hizoClic = (mouseActual.LeftButton == ButtonState.Pressed && _mouseAnterior.LeftButton == ButtonState.Released);
+ 
+             _mouseSobreConfiguracion = _rectBotonConfiguracion.Contains(mouseActual.Position);
+ 
+-            SiguienteEstado = null;
++            // Animación suave de "hover": cada valor va de 0 a 1 en ~0.12 s.
++            _hoverTaller = UI.Acercar(_hoverTaller, _rectBotonTaller.Contains(_posicionMouse) ? 1f : 0f, 8f, dt);
++            _hoverCorrer = UI.Acercar(_hoverCorrer, _rectBotonCorrer.Contains(_posicionMouse) ? 1f : 0f, 8f, dt);
++            _hoverConcesionario = UI.Acercar(_hoverConcesionario, _rectBotonConcesionario.Contains(_posicionMouse) ? 1f : 0f, 8f, dt);
++            _hoverSalir = UI.Acercar(_hoverSalir, _rectBotonSalir.Contains(_posicionMouse) ? 1f : 0f, 8f, dt);
++
++            if (_mouseSobreConfiguracion)
++                _rotacionEngranaje += dt * 2.5f;   // el engranaje gira mientras el mouse está encima
+ 
+             if (hizoClic)
+             {
+@@ -73,6 +124,10 @@ namespace La35Tunning.Escenas
+                 {
+                     SiguienteEstado = EstadoJuego.Configuracion;
+                 }
++                else if (_rectBotonSalir.Contains(posicionMouse))
++                {
++                    QuiereSalir = true;
++                }
+             }
+ 
+             _mouseAnterior = mouseActual;
+@@ -81,31 +136,139 @@ namespace La35Tunning.Escenas
+         public void Draw(SpriteBatch spriteBatch, SpriteFont fuente, GraphicsDevice graphicsDevice)
+         {
+             ActualizarRectangulos();
++            int ancho = graphicsDevice.Viewport.Width;
++            int alto = graphicsDevice.Viewport.Height;
++
++            // 1) Fondo SIN deformar (antes se estiraba a la pantalla).
+             if (_fondoMenu != null)
+             {
+-                spriteBatch.Draw(_fondoMenu, new Rectangle(0, 0, graphicsDevice.PresentationParameters.BackBufferWidth, graphicsDevice.PresentationParameters.BackBufferHeight), Color.White);
++                UI.FondoCubriendo(spriteBatch, _fondoMenu, ancho, alto, Color.White);
++            }
++
++            // 2) Degradé oscuro abajo para que los botones resalten sobre la calle.
++            UI.Degrade(spriteBatch, new Rectangle(0, (int)(alto * 0.42f), ancho, (int)(alto * 0.58f) + 1), Color.Black * 0.78f, true);
++
++            // 3) Los tres botones (CORRER en el medio y más grande).
++            float latido = 0.5f + 0.5f * (float)Math.Sin(_tiempo * 3f);
++            DibujarBotonImagen(spriteBatch, _texturaTaller, _rectBotonTaller, _hoverTaller, 0f);
++            DibujarBotonImagen(spriteBatch, _texturaConcesionario, _rectBotonConcesionario, _hoverConcesionario, 0f);
++            DibujarBotonImagen(spriteBatch, _texturaCorrer, _rectBotonCorrer, _hoverCorrer, 0.12f + 0.12f * latido);
++
++            // 4) Botones de arriba a la derecha: SALIR y configuración.
++            UI.Boton(spriteBatch, _rectBotonSalir, "SALIR", _hoverSalir > 0.5f, true, new Color(70, 30, 36));
++            DibujarEngranaje(spriteBatch);
++
++            // 5) Barra inferior con los datos del jugador.
++            DibujarBarraJugador(spriteBatch, ancho, alto);
++
++            // 6) Fundido desde negro al entrar al menú.
++            float fundido = 1f - MathHelper.Clamp(_tiempoDesdeEntrada / 0.35f, 0f, 1f);
++            if (fundido > 0f)
++            {
++                UI.Rect(spriteBatch, new Rectangle(0, 0, ancho, alto), Color.Black * fundido);
++            }
++        }
++
++        /// <summary>
++        /// Dibuja una de las imágenes-botón: recortada a su parte visible, un poquito
++        /// más grande y brillante cuando el mouse está encima, con un resplandor detrás.
++        /// </summary>
++        private void DibujarBotonImagen(SpriteBatch spriteBatch, Texture2D textura, Rectangle rect, float hover, float brilloExtra)
++        {
++            if (textura == null)
++                return;
++
++            float escala = 1f + 0.06f * hover;
++            int anchoEscalado = (int)(rect.Width * escala);
++            int altoEscalado = (int)(rect.Height * escala);
++            Rectangle destino = new Rectangle(
++                rect.Center.X - anchoEscalado / 2,
++                rect.Center.Y - altoEscalado / 2 - (int)(6 * hover),
++                anchoEscalado,
++                altoEscalado);
++
++            float intensidadBrillo = 0.45f * hover + brilloExtra;
++            if (intensidadBrillo > 0f)
++            {
++                UI.Resplandor(spriteBatch, new Vector2(destino.Center.X, destino.Center.Y),
++                    destino.Width * 0.72f, destino.Height * 0.95f, UI.Acento * intensidadBrillo);
+             }
+ 
+-            if (_texturaTaller != null)
+-                spriteBatch.Draw(_texturaTaller, _rectBotonTaller, Color.White);
++            // Sombra en el piso
++            UI.Resplandor(spriteBatch, new Vector2(rect.Center.X, rect.Bottom + 8),
++                rect.Width * 0.5f, 16f, Color.Black * 0.7f);
+ 
+-            if (_texturaConcesionario != null)
+-                spriteBatch.Draw(_texturaConcesionario, _rectBotonConcesionario, Color.White);
++            Color tinte = Color.Lerp(new Color(215, 215, 220), Color.White, hover);
++            spriteBatch.Draw(textura, destino, UI.LimitesOpacos(textura), tinte);
++        }
++
++        private void DibujarEngranaje(SpriteBatch spriteBatch)
++        {
++            Vector2 centro = new Vector2(_rectBotonConfiguracion.Center.X, _rectBotonConfiguracion.Center.Y);
++            float radio = _rectBotonConfiguracion.Width / 2f;
+ 
+-            if (_texturaCorrer != null)
+-                spriteBatch.Draw(_texturaCorrer, _rectBotonCorrer, Color.White);
++            UI.CirculoLleno(spriteBatch, centro + new Vector2(0, 3), radio + 2, Color.Black * 0.5f);
++            UI.CirculoLleno(spriteBatch, centro, radio + 2, _mouseSobreConfiguracion ? UI.Acento : UI.BordePanel);
++            UI.CirculoLleno(spriteBatch, centro, radio, UI.ColorPanel);
+ 
+             Color colorEngranaje = _mouseSobreConfiguracion ? Color.Gold : Color.White;
+-            spriteBatch.Draw(_texturaEngranaje, _rectBotonConfiguracion, colorEngranaje);
++            float escala = (radio * 1.45f) / _texturaEngranaje.Width;
++            Vector2 origen = new Vector2(_texturaEngranaje.Width / 2f, _texturaEngranaje.Height / 2f);
++            spriteBatch.Draw(_texturaEngranaje, centro, null, colorEngranaje, _rotacionEngranaje, origen, escala, SpriteEffects.None, 0f);
+         }
+ 
++        private void DibujarBarraJugador(SpriteBatch spriteBatch, int ancho, int alto)
++        {
++            Rectangle barra = new Rectangle(0, alto - 68, ancho, 68);
++            UI.Rect(spriteBatch, barra, Color.Black * 0.6f);
++            UI.Rect(spriteBatch, new Rectangle(0, barra.Y, ancho, 2), UI.Acento * 0.8f);
++
++            if (JugadorActual == null)
++                return;
++
++            float y = barra.Y + 16;
++            Rectangle chip = UI.Chip(spriteBatch, new Vector2(24, y), "PILOTO", JugadorActual.Nombre, UI.TextoClaro);
++
++            string auto = JugadorActual.AutoActual != null ? JugadorActual.AutoActual.Modelo : "Sin auto";
++            Color colorAuto = JugadorActual.AutoActual != null ? UI.Azul : UI.Rojo;
++            chip = UI.Chip(spriteBatch, new Vector2(chip.Right + 16, y), "AUTO", auto, colorAuto);
++
++            UI.Chip(spriteBatch, new Vector2(chip.Right + 16, y), "DINERO", UI.Dinero(JugadorActual.Dinero), UI.Verde);
++
++            string ayuda = JugadorActual.AutoActual == null
++                ? "Comprá y equipá un auto en el CONCESIONARIO para poder correr"
++                : "Elegí una opción con el mouse";
++            UI.TextoDerecha(spriteBatch, UI.Fuente, ayuda, new Vector2(ancho - 24, barra.Y + 22), UI.TextoSecundario);
++        }
++
++        /// <summary>
++        /// ANTES: posiciones fijas pensadas para una ventana de 800 px de ancho.
++        /// AHORA: todo se calcula según el tamaño real de la pantalla, así queda
++        /// centrado en cualquier monitor (1366x768, 1920x1080, etc.).
++        /// </summary>
+         private void ActualizarRectangulos()
+         {
+-            int desplazamientoX = Math.Max(0, (_graphicsDevice.Viewport.Width - 800) / 2);
+-            _rectBotonTaller.X = 292 + desplazamientoX;
+-            _rectBotonConcesionario.X = 292 + desplazamientoX;
+-            _rectBotonCorrer.X = 292 + desplazamientoX;
+-            _rectBotonConfiguracion.X = _graphicsDevice.Viewport.Width - 74;
++            int ancho = _graphicsDevice.Viewport.Width;
++            int alto = _graphicsDevice.Viewport.Height;
++
++            int altoBoton = (int)MathHelper.Clamp(alto * 0.17f, 100f, 210f);
++            int anchoBoton = (int)(altoBoton * 1.97f);           // proporción de las imágenes de los botones
++            int altoCorrer = (int)(altoBoton * 1.15f);
++            int anchoCorrer = (int)(anchoBoton * 1.15f);
++            int separacion = (int)Math.Max(24, ancho * 0.025f);
++
++            int anchoTotal = anchoBoton * 2 + anchoCorrer + separacion * 2;
++            int x = (ancho - anchoTotal) / 2;
++            int centroY = (int)(alto * 0.68f);
++
++            _rectBotonTaller = new Rectangle(x, centroY - altoBoton / 2, anchoBoton, altoBoton);
++            x += anchoBoton + separacion;
++            _rectBotonCorrer = new Rectangle(x, centroY - altoCorrer / 2, anchoCorrer, altoCorrer);
++            x += anchoCorrer + separacion;
++            _rectBotonConcesionario = new Rectangle(x, centroY - altoBoton / 2, anchoBoton, altoBoton);
++
++            _rectBotonConfiguracion = new Rectangle(ancho - 84, 20, 60, 60);
++            _rectBotonSalir = new Rectangle(_rectBotonConfiguracion.X - 136, 28, 120, 44);
+         }
+ 
+         private Texture2D CrearTexturaEngranaje(GraphicsDevice graphicsDevice, int tamano)
+@@ -143,4 +306,4 @@ namespace La35Tunning.Escenas
+             return textura;
+         }
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/La35Tunning/Escenas/PantallaCarrera.cs b/La35Tunning/Escenas/PantallaCarrera.cs
+index 582278a..bdafb67 100644
+--- a/La35Tunning/Escenas/PantallaCarrera.cs
++++ b/La35Tunning/Escenas/PantallaCarrera.cs
+@@ -1,3 +1,5 @@
++using System;
++using System.Collections.Generic;
+ using La35Tunning.Entidades;
+ using La35Tunning.Modelos;
+ using La35Tunning.Sistemas;
+@@ -54,6 +56,44 @@ namespace La35Tunning.Escenas
+ 
+         private KeyboardState _tecladoAnterior;
+ 
++        // ==================================================================
++        // NUEVO: escenario (todas las medidas en "unidades de mundo")
++        // ==================================================================
++        // Cuánto mundo se ve de alto en pantalla. La cámara calcula el zoom con esto,
++        // así la pista ocupa siempre lo mismo en cualquier resolución.
++        public const float AltoVisibleMundo = 760f;
++        private const float CentroCamaraY = 382f;
++
++        private const float YVeredaLejana = 292f;     // arriba: vereda de enfrente
++        private const float YCordonLejano = 326f;
++        private const float YAsfaltoArriba = 334f;
++        private const float YAsfaltoAbajo = 624f;
++        private const float YVeredaCercana = 632f;
++        private const float YGuardarrail = 690f;
++
++        private const float InicioMundoX = -1600f;
++        private const float FinMundoX = Auto.FrenteEnMeta + 2600f;
++        private const float UnidadesPorMetro = Auto.DistanciaMeta / 400f;   // la picada es de 400 metros
++
++        private readonly Random _azar = new Random();
++        private readonly List<Particula> _humo = new List<Particula>();
++        private float _tiempoReaccion = -1f;      // segundos entre el verde y el primer W
++        private Camera2D _camara;                 // se guarda en DibujarFondo para ubicar cosas del mundo en el HUD
++
++        // El "árbol" de luces está en la vereda de enfrente, justo pasando la línea de largada.
++        private const float AltoSemaforoMundo = 240f;
++        private static readonly Vector2 BaseSemaforoMundo = new Vector2(Auto.FrenteEnLargada + 70f, YVeredaLejana + 8f);
++        private bool _premioCobrado;
++
++        private struct Particula
++        {
++            public Vector2 Posicion;
++            public Vector2 Velocidad;
++            public float Vida;
++            public float VidaMaxima;
++            public float Tamano;
++        }
++
+         public PantallaCarrera(Auto autoJugador, Auto autoRival, Semaforo semaforo, float carrilJugadorY, float carrilRivalY,
+             Texture2D texturaPixel, Texture2D texturaVelocimetro, Texture2D texturaAgujaVelocimetro, Modelos.Jugador jugador)
+         {
+@@ -67,12 +107,34 @@ namespace La35Tunning.Escenas
+             _texturaAgujaVelocimetro = texturaAgujaVelocimetro;
+             _jugador = jugador;
+ 
++            LimpiarFondoGrisDelTablero(_texturaVelocimetro);
++
+             if (_autoJugador != null)
+             {
+                 IniciarNuevaCarrera();
+             }
+         }
+ 
++        /// <summary>
++        /// Velocimetro.png trae un rectángulo gris semitransparente alrededor del reloj.
++        /// Esos píxeles tienen alfa 200 (los del reloj tienen 255), así que los
++        /// volvemos transparentes una sola vez al cargar.
++        /// </summary>
++        private static void LimpiarFondoGrisDelTablero(Texture2D textura)
++        {
++            if (textura == null)
++                return;
++
++            Color[] datos = new Color[textura.Width * textura.Height];
++            textura.GetData(datos);
++            for (int i = 0; i < datos.Length; i++)
++            {
++                if (datos[i].A < 250)
++                    datos[i] = Color.Transparent;
++            }
++            textura.SetData(datos);
++        }
++
+         public void IniciarNuevaCarrera()
+         {
+             if (_autoJugador == null || _autoRival == null)
+@@ -92,6 +154,9 @@ namespace La35Tunning.Escenas
+             _estadoSemaforoAnterior = _semaforo.Estado;
+             _tiempoOscurecimiento = DuracionOscurecimiento;
+             _tiempoMostrarVerde = 0f;
++            _tiempoReaccion = -1f;
++            _premioCobrado = false;
++            _humo.Clear();
+ 
+             Estado = EstadoCarrera.Largada;
+         }
+@@ -125,6 +190,7 @@ namespace La35Tunning.Escenas
+                     break;
+             }
+ 
++            ActualizarHumo((float)gameTime.ElapsedGameTime.TotalSeconds);
+             _tecladoAnterior = Keyboard.GetState();
+         }
+ 
+@@ -160,13 +226,13 @@ namespace La35Tunning.Escenas
+ 
+             if (_semaforo.EstaEnVerde)
+             {
+-                _tiempoMostrarVerde += (float)gameTime.ElapsedGameTime.TotalSeconds;
+-
+-                if (_tiempoMostrarVerde >= DuracionVerde)
+-                {
+-                    Estado = EstadoCarrera.Corriendo;
+-                    _cronometro = 0f;
+-                }
++                // CAMBIO: antes la carrera arrancaba 0.8 s DESPUÉS del verde y durante ese
++                // tiempo apretar W no hacía nada (se perdía el tiempo de reacción, que es
++                // lo más importante de una picada). Ahora arranca en el mismo instante del
++                // verde; el semáforo en verde se sigue mostrando DuracionVerde segundos.
++                Estado = EstadoCarrera.Corriendo;
++                _cronometro = 0f;
++                _tiempoMostrarVerde = 0f;
+             }
+         }
+ 
+@@ -183,11 +249,25 @@ namespace La35Tunning.Escenas
+ 
+         private void ActualizarCarrera(GameTime gameTime)
+         {
+-            _cronometro += (float)gameTime.ElapsedGameTime.TotalSeconds;
++            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
++            _cronometro += dt;
++            _tiempoMostrarVerde += dt;
++
++            // NUEVO: tiempo de reacción = cuánto tardó en apretar W desde que se puso verde.
++            if (_tiempoReaccion < 0f && Keyboard.GetState().IsKeyDown(Keys.W))
++            {
++                _tiempoReaccion = _cronometro;
++            }
+ 
+             _autoJugador.ActualizarEnCarrera(gameTime, semaforoEnVerde: true);
+             _autoRival.AvanzarDistancia(VelocidadRivalProvisoria);
+ 
++            // NUEVO: humo de gomas al salir (jugador mientras acelera fuerte, rival el primer segundo).
++            if (Keyboard.GetState().IsKeyDown(Keys.W) && _autoJugador.VelocidadActual < 5f)
++                EmitirHumo(_autoJugador);
++            if (_cronometro < 1.1f)
++                EmitirHumo(_autoRival);
++
+             if (_autoJugador.LlegoAMeta && _tiempoFinalJugador == 0f)
+                 _tiempoFinalJugador = _cronometro;
+ 
+@@ -201,6 +281,7 @@ namespace La35Tunning.Escenas
+                 if (GanoElJugador())
+                 {
+                     _jugador.SumarDinero(PremioPorGanar);
++                    _premioCobrado = true;
+                 }
+             }
+         }
+@@ -233,148 +314,655 @@ namespace La35Tunning.Escenas
+                 System.Diagnostics.Debug.WriteLine($"Ganó el rival. Tiempo: {_tiempoFinalRival:0.000}s");
+         }
+ 
++        // ==================================================================
++        // HUMO (sistema de partículas muy simple)
++        // ==================================================================
++
++        private void EmitirHumo(Auto auto)
++        {
++            // Sale de la rueda de atrás (la izquierda, porque los autos miran a la derecha).
++            Vector2 origen = new Vector2(auto.Posicion.X + Auto.AnchoEnCarrera * 0.16f, auto.Posicion.Y - 6f);
++
++            Particula particula = new Particula
++            {
++                Posicion = origen + new Vector2((float)_azar.NextDouble() * 10f, (float)_azar.NextDouble() * -6f),
++                Velocidad = new Vector2(-40f - (float)_azar.NextDouble() * 70f, -10f - (float)_azar.NextDouble() * 35f),
++                VidaMaxima = 0.7f + (float)_azar.NextDouble() * 0.5f,
++                Tamano = 14f + (float)_azar.NextDouble() * 10f
++            };
++            particula.Vida = particula.VidaMaxima;
++            _humo.Add(particula);
++        }
++
++        private void ActualizarHumo(float dt)
++        {
++            for (int i = _humo.Count - 1; i >= 0; i--)
++            {
++                Particula p = _humo[i];   // es un struct: hay que copiarlo, cambiarlo y volver a guardarlo
++                p.Vida -= dt;
++                if (p.Vida <= 0f)
++                {
++                    _humo.RemoveAt(i);
++                    continue;
++                }
++
++                p.Posicion += p.Velocidad * dt;
++                p.Velocidad *= 0.97f;
++                p.Tamano += 60f * dt;
++                _humo[i] = p;
++            }
++        }
++
++        private void DibujarHumo(SpriteBatch spriteBatch)
++        {
++            foreach (Particula p in _humo)
++            {
++                float vida = p.Vida / p.VidaMaxima;   // 1 = recién nacida, 0 = por desaparecer
++                UI.Resplandor(spriteBatch, p.Posicion, p.Tamano, p.Tamano * 0.8f, new Color(215, 215, 222) * (0.55f * vida));
++            }
++        }
++
++        // ==================================================================
++        // CÁMARA
++        // ==================================================================
++
++        /// <summary>
++        /// NUEVO: dónde tiene que mirar la cámara. Antes se centraba en la esquina del auto
++        /// del jugador (quedaba corrido y no se veía el camino de adelante). Ahora el auto
++        /// queda a un tercio de la pantalla, mirando hacia donde va, y la pista centrada.
++        /// </summary>
++        public Vector2 ObtenerCentroCamara(float anchoVisibleMundo)
++        {
++            if (_autoJugador == null)
++                return new Vector2(0, CentroCamaraY);
++
++            float centroAuto = _autoJugador.Posicion.X + Auto.AnchoEnCarrera / 2f;
++            return new Vector2(centroAuto + anchoVisibleMundo * 0.17f, CentroCamaraY);
++        }
++
++        // ==================================================================
++        // FONDO CON PARALLAX (se dibuja SIN la cámara, en coordenadas de pantalla)
++        // ==================================================================
++
++        /// <summary>
++        /// Cielo de atardecer, sol y dos filas de edificios que se mueven más lento
++        /// que la pista (efecto "parallax"): da sensación de profundidad y velocidad.
++        /// </summary>
++        public void DibujarFondo(SpriteBatch spriteBatch, Camera2D camara)
++        {
++            _camara = camara;
++            int ancho = spriteBatch.GraphicsDevice.Viewport.Width;
++            int alto = spriteBatch.GraphicsDevice.Viewport.Height;
++            float zoom = camara.Zoom;
++            float camaraX = camara.Centro.X;
++            float horizonte = camara.MundoAPantalla(new Vector2(0, YVeredaLejana)).Y;
++
++            // Cielo: azul oscuro arriba -> violeta -> naranja en el horizonte
++            UI.Rect(spriteBatch, new Rectangle(0, 0, ancho, (int)horizonte + 2), new Color(22, 28, 62));
++            UI.Degrade(spriteBatch, new Rectangle(0, 0, ancho, (int)horizonte + 2), new Color(118, 64, 120), true);
++            UI.Degrade(spriteBatch, new Rectangle(0, (int)(horizonte * 0.45f), ancho, (int)(horizonte * 0.55f) + 2), new Color(246, 140, 74), true);
++
++            // Algunas estrellas
++            for (int i = 0; i < 40; i++)
++            {
++                float x = UI.AzarFijo(i, 7) * ancho;
++                float y = UI.AzarFijo(i, 11) * horizonte * 0.45f;
++                float brillo = 0.25f + 0.5f * UI.AzarFijo(i, 13);
++                UI.Rect(spriteBatch, new Rectangle((int)x, (int)y, 2, 2), Color.White * brillo);
++            }
++
++            // Sol (se mueve apenas: está "muy lejos")
++            Vector2 sol = new Vector2(ancho * 0.7f - camaraX * zoom * 0.015f, horizonte - alto * 0.09f);
++            UI.Resplandor(spriteBatch, sol, alto * 0.42f, alto * 0.3f, new Color(255, 140, 70) * 0.45f);
++            UI.CirculoLleno(spriteBatch, sol, alto * 0.065f, new Color(255, 214, 150));
++
++            // Edificios lejanos (silueta) y cercanos (con color y ventanas)
++            DibujarCapaEdificios(spriteBatch, camaraX, zoom, ancho, horizonte, 0.12f, 150f, 0.16f, 0.36f, 3, false);
++            UI.Degrade(spriteBatch, new Rectangle(0, (int)(horizonte - alto * 0.12f), ancho, (int)(alto * 0.12f)), new Color(246, 140, 74) * 0.25f, true);
++            DibujarCapaEdificios(spriteBatch, camaraX, zoom, ancho, horizonte, 0.45f, 270f, 0.12f, 0.27f, 5, true);
++        }
++
++        private void DibujarCapaEdificios(SpriteBatch spriteBatch, float camaraX, float zoom, int anchoPantalla, float baseY,
++            float parallax, float anchoLote, float altoMinimo, float altoMaximo, int semilla, bool cercanos)
++        {
++            int altoPantalla = spriteBatch.GraphicsDevice.Viewport.Height;
++            float desplazamiento = camaraX * parallax;
++            float medioAnchoVisible = anchoPantalla / 2f / zoom;
++
++            int primero = (int)Math.Floor((desplazamiento - medioAnchoVisible) / anchoLote) - 1;
++            int ultimo = (int)Math.Ceiling((desplazamiento + medioAnchoVisible) / anchoLote) + 1;
++
++            Color[] paleta =
++            {
++                new Color(112, 156, 186),   // celeste (como la escuela del menú)
++                new Color(200, 178, 140),   // crema
++                new Color(170, 98, 82),     // ladrillo
++                new Color(132, 150, 120),   // verde gris
++                new Color(176, 140, 160),   // rosado viejo
++            };
++
++            for (int i = primero; i <= ultimo; i++)
++            {
++                float a1 = UI.AzarFijo(i, semilla);
++                float a2 = UI.AzarFijo(i, semilla + 1);
++                float a3 = UI.AzarFijo(i, semilla + 2);
++
++                float anchoEdificio = anchoLote * (cercanos ? 0.86f + a1 * 0.14f : 0.55f + a1 * 0.45f);
++                float altoEdificio = altoPantalla * (altoMinimo + a2 * (altoMaximo - altoMinimo));
++
++                float x = anchoPantalla / 2f + (i * anchoLote - desplazamiento) * zoom;
++                Rectangle edificio = new Rectangle((int)x, (int)(baseY - altoEdificio), (int)(anchoEdificio * zoom), (int)altoEdificio + 1);
++
++                if (!cercanos)
++                {
++                    UI.Rect(spriteBatch, edificio, new Color(56, 42, 82));
++                    // Ventanitas encendidas sueltas
++                    for (int v = 0; v < 6; v++)
++                    {
++                        if (UI.AzarFijo(i * 10 + v, semilla + 5) > 0.55f)
++                        {
++                            int vx = edificio.X + (int)(UI.AzarFijo(i * 10 + v, semilla + 6) * (edificio.Width - 6));
++                            int vy = edificio.Y + (int)(UI.AzarFijo(i * 10 + v, semilla + 7) * (edificio.Height - 6));
++                            UI.Rect(spriteBatch, new Rectangle(vx, vy, 3, 4), new Color(255, 200, 120) * 0.7f);
++                        }
++                    }
++                    continue;
++                }
++
++                // Edificio cercano: frente de color oscurecido por el atardecer
++                Color color = Color.Lerp(paleta[(int)(a3 * paleta.Length) % paleta.Length], new Color(40, 30, 60), 0.45f);
++                UI.Rect(spriteBatch, edificio, color);
++                UI.Rect(spriteBatch, new Rectangle(edificio.X, edificio.Y, edificio.Width, (int)(6 * zoom)), Color.Black * 0.25f);   // cornisa
++                UI.Rect(spriteBatch, new Rectangle(edificio.Right - (int)(4 * zoom), edificio.Y, (int)(4 * zoom), edificio.Height), Color.Black * 0.2f);
++
++                // Ventanas en grilla
++                int columnas = 2 + (int)(a1 * 3);
++                int pisos = Math.Max(1, (int)(altoEdificio / (54 * zoom)) - 1);
++                float anchoVentana = edificio.Width / (columnas * 1.8f + 0.8f);
++                float altoVentana = 26 * zoom;
++                for (int c = 0; c < columnas; c++)
++                {
++                    for (int p = 0; p < pisos; p++)
++                    {
++                        int vx = (int)(edificio.X + anchoVentana * 0.8f + c * anchoVentana * 1.8f);
++                        int vy = (int)(edificio.Y + 18 * zoom + p * 54 * zoom);
++                        bool encendida = UI.AzarFijo(i * 100 + c * 10 + p, semilla + 3) > 0.6f;
++                        Color colorVentana = encendida ? new Color(255, 204, 128) : new Color(30, 34, 52);
++                        UI.Rect(spriteBatch, new Rectangle(vx, vy, (int)anchoVentana, (int)altoVentana), colorVentana);
++                        if (encendida)
++                            UI.Resplandor(spriteBatch, new Vector2(vx + anchoVentana / 2f, vy + altoVentana / 2f), anchoVentana, altoVentana, new Color(255, 180, 90) * 0.18f);
++                    }
++                }
++
++                // Toldo a rayas en planta baja (algunos edificios)
++                if (a2 > 0.45f)
++                {
++                    int toldoY = (int)(baseY - 46 * zoom);
++                    int franjas = 8;
++                    float anchoFranja = edificio.Width * 0.7f / franjas;
++                    for (int f = 0; f < franjas; f++)
++                    {
++                        Color colorFranja = f % 2 == 0 ? new Color(196, 60, 60) : new Color(230, 220, 210);
++                        UI.Rect(spriteBatch, new Rectangle((int)(edificio.X + edificio.Width * 0.15f + f * anchoFranja), toldoY, (int)anchoFranja + 1, (int)(14 * zoom)), colorFranja * 0.8f);
++                    }
++                }
++            }
++        }
++
++        // ==================================================================
++        // MUNDO (se dibuja CON la cámara: Game1 usa transformMatrix)
++        // ==================================================================
++
+         public void Draw(SpriteBatch spriteBatch)
+         {
+             if (_autoJugador == null || _autoRival == null)
+                 return;
+ 
+-            for (float x = 100f; x <= 100f + Auto.DistanciaMeta; x += 200f)
++            float largo = FinMundoX - InicioMundoX;
++            int x0 = (int)InicioMundoX;
++
++            // Vereda de enfrente
++            UI.Rect(spriteBatch, new Rectangle(x0, (int)YVeredaLejana, (int)largo, (int)(YCordonLejano - YVeredaLejana)), new Color(98, 92, 108));
++            UI.Rect(spriteBatch, new Rectangle(x0, (int)YVeredaLejana, (int)largo, 3), Color.Black * 0.35f);
++            for (float x = InicioMundoX; x < FinMundoX; x += 80f)
+             {
+-                spriteBatch.Draw(_texturaPixel, new Rectangle((int)x, 150, 4, 350), Color.Gray);
++                UI.Rect(spriteBatch, new Rectangle((int)x, (int)YVeredaLejana, 2, (int)(YCordonLejano - YVeredaLejana)), new Color(78, 72, 88));
+             }
+ 
+-            _autoJugador.Draw(spriteBatch);
++            DibujarFaroles(spriteBatch);
++            DibujarCartelesDeDistancia(spriteBatch);
++            DibujarPorticoDeMeta(spriteBatch);
++            DibujarSemaforoEnLaPista(spriteBatch);
++
++            // Cordón + asfalto
++            UI.Rect(spriteBatch, new Rectangle(x0, (int)YCordonLejano, (int)largo, (int)(YAsfaltoArriba - YCordonLejano)), new Color(176, 174, 184));
++            UI.Rect(spriteBatch, new Rectangle(x0, (int)YAsfaltoArriba, (int)largo, (int)(YAsfaltoAbajo - YAsfaltoArriba)), new Color(46, 48, 58));
++            UI.Degrade(spriteBatch, new Rectangle(x0, (int)YAsfaltoArriba, (int)largo, 40), Color.Black * 0.35f);
++
++            // Marcas de goma de los carriles (más oscuras cerca de la largada, como en una pista real)
++            DibujarMarcasDeGoma(spriteBatch, _carrilRivalY);
++            DibujarMarcasDeGoma(spriteBatch, _carrilJugadorY);
++
++            // Líneas blancas de los bordes y línea divisoria punteada
++            UI.Rect(spriteBatch, new Rectangle(x0, (int)YAsfaltoArriba + 10, (int)largo, 4), Color.White * 0.75f);
++            UI.Rect(spriteBatch, new Rectangle(x0, (int)YAsfaltoAbajo - 14, (int)largo, 4), Color.White * 0.75f);
++            float yDivisoria = (_carrilRivalY + _carrilJugadorY) / 2f + 6f;
++            for (float x = InicioMundoX; x < FinMundoX; x += 140f)
++            {
++                UI.Rect(spriteBatch, new Rectangle((int)x, (int)yDivisoria, 70, 4), new Color(250, 214, 80) * 0.85f);
++            }
++
++            // Línea de largada y de meta
++            UI.Rect(spriteBatch, new Rectangle((int)Auto.FrenteEnLargada, (int)YAsfaltoArriba + 10, 8, (int)(YAsfaltoAbajo - YAsfaltoArriba) - 20), Color.White * 0.9f);
++            DibujarCuadriculado(spriteBatch, (int)Auto.FrenteEnMeta, (int)YAsfaltoArriba + 10, 3, (int)((YAsfaltoAbajo - YAsfaltoArriba - 20) / 16f), 16);
++
++            // Vereda de este lado
++            UI.Rect(spriteBatch, new Rectangle(x0, (int)YAsfaltoAbajo, (int)largo, (int)(YVeredaCercana - YAsfaltoAbajo)), new Color(176, 174, 184));
++            UI.Rect(spriteBatch, new Rectangle(x0, (int)YVeredaCercana, (int)largo, (int)(YGuardarrail - YVeredaCercana)), new Color(108, 102, 118));
++            for (float x = InicioMundoX; x < FinMundoX; x += 90f)
++            {
++                UI.Rect(spriteBatch, new Rectangle((int)x, (int)YVeredaCercana, 2, (int)(YGuardarrail - YVeredaCercana)), new Color(86, 80, 96));
++            }
++
++            // Autos (primero el de atrás) con el humo debajo
++            DibujarHumo(spriteBatch);
+             _autoRival.Draw(spriteBatch);
++            _autoJugador.Draw(spriteBatch);
++
++            // Guardarraíl en primer plano
++            UI.Rect(spriteBatch, new Rectangle(x0, (int)YGuardarrail + 22, (int)largo, 400), new Color(20, 22, 28));
++            for (float x = InicioMundoX; x < FinMundoX; x += 160f)
++            {
++                UI.Rect(spriteBatch, new Rectangle((int)x, (int)YGuardarrail, 12, 46), new Color(54, 56, 66));
++            }
++            UI.Rect(spriteBatch, new Rectangle(x0, (int)YGuardarrail + 4, (int)largo, 16), new Color(150, 156, 168));
++            UI.Rect(spriteBatch, new Rectangle(x0, (int)YGuardarrail + 4, (int)largo, 3), new Color(210, 214, 222));
++            UI.Rect(spriteBatch, new Rectangle(x0, (int)YGuardarrail + 17, (int)largo, 3), Color.Black * 0.3f);
+         }
+ 
++        private void DibujarMarcasDeGoma(SpriteBatch spriteBatch, float yCarril)
++        {
++            UI.Rect(spriteBatch, new Rectangle((int)InicioMundoX, (int)yCarril - 10, (int)(FinMundoX - InicioMundoX), 14), Color.Black * 0.12f);
++            UI.Rect(spriteBatch, new Rectangle((int)Auto.FrenteEnLargada - 260, (int)yCarril - 10, 900, 14), Color.Black * 0.25f);
++        }
++
++        private void DibujarCuadriculado(SpriteBatch spriteBatch, int x, int y, int columnas, int filas, int lado)
++        {
++            for (int c = 0; c < columnas; c++)
++            {
++                for (int f = 0; f < filas; f++)
++                {
++                    Color color = (c + f) % 2 == 0 ? Color.White : new Color(20, 20, 24);
++                    UI.Rect(spriteBatch, new Rectangle(x + c * lado, y + f * lado, lado, lado), color);
++                }
++            }
++        }
++
++        private void DibujarFaroles(SpriteBatch spriteBatch)
++        {
++            for (float x = InicioMundoX + 60f; x < FinMundoX; x += 420f)
++            {
++                int poste = (int)x;
++                UI.Rect(spriteBatch, new Rectangle(poste, 118, 6, (int)YVeredaLejana - 112), new Color(44, 46, 56));
++                UI.Rect(spriteBatch, new Rectangle(poste, 118, 48, 5), new Color(44, 46, 56));
++                UI.Rect(spriteBatch, new Rectangle(poste + 34, 116, 24, 9), new Color(246, 236, 200));
++                UI.Resplandor(spriteBatch, new Vector2(poste + 46, 130), 80f, 56f, new Color(255, 206, 130) * 0.35f);
++                UI.Resplandor(spriteBatch, new Vector2(poste + 46, YCordonLejano - 6), 110f, 16f, new Color(255, 206, 130) * 0.22f);
++            }
++        }
++
++        private void DibujarCartelesDeDistancia(SpriteBatch spriteBatch)
++        {
++            for (int metros = 100; metros < 400; metros += 100)
++            {
++                float x = Auto.FrenteEnLargada + metros * UnidadesPorMetro;
++                DibujarCartel(spriteBatch, x, $"{metros} m", Color.White, new Color(30, 30, 36));
++            }
++            DibujarCartel(spriteBatch, Auto.FrenteEnLargada - 120f, "LARGADA", UI.Acento, new Color(30, 24, 6));
++        }
++
++        private void DibujarCartel(SpriteBatch spriteBatch, float x, string texto, Color fondo, Color colorTexto)
++        {
++            Vector2 medida = UI.Negrita.MeasureString(texto);
++            int ancho = (int)medida.X + 24;
++            UI.Rect(spriteBatch, new Rectangle((int)x - 2, 236, 5, (int)YVeredaLejana - 232), new Color(60, 62, 70));
++            Rectangle cartel = new Rectangle((int)x - ancho / 2, 200, ancho, 38);
++            UI.Rect(spriteBatch, new Rectangle(cartel.X + 3, cartel.Y + 4, cartel.Width, cartel.Height), Color.Black * 0.4f);
++            UI.Rect(spriteBatch, cartel, fondo);
++            UI.Borde(spriteBatch, cartel, 2, Color.Black * 0.5f);
++            UI.TextoCentrado(spriteBatch, UI.Negrita, texto, new Vector2(cartel.Center.X, cartel.Center.Y + 1), colorTexto, 1f, false);
++        }
++
++        private void DibujarPorticoDeMeta(SpriteBatch spriteBatch)
++        {
++            int x = (int)Auto.FrenteEnMeta;
++            UI.Rect(spriteBatch, new Rectangle(x - 30, 120, 8, (int)YVeredaLejana - 116), new Color(60, 62, 70));
++            UI.Rect(spriteBatch, new Rectangle(x + 200, 120, 8, (int)YVeredaLejana - 116), new Color(60, 62, 70));
++
++            Rectangle cartel = new Rectangle(x - 40, 110, 258, 64);
++            UI.Rect(spriteBatch, new Rectangle(cartel.X + 4, cartel.Y + 5, cartel.Width, cartel.Height), Color.Black * 0.4f);
++            UI.Rect(spriteBatch, cartel, new Color(22, 22, 28));
++            DibujarCuadriculado(spriteBatch, cartel.X, cartel.Y, cartel.Width / 12, 1, 12);
++            DibujarCuadriculado(spriteBatch, cartel.X + 12, cartel.Bottom - 12, cartel.Width / 12 - 1, 1, 12);
++            UI.TextoCentrado(spriteBatch, UI.Titulo, "META", new Vector2(cartel.Center.X, cartel.Center.Y + 2), UI.Acento, 0.7f);
++        }
++
++        /// <summary>El "árbol" de luces también está en la pista, al lado de la largada.</summary>
++        private void DibujarSemaforoEnLaPista(SpriteBatch spriteBatch)
++        {
++            Texture2D textura = _semaforo.TexturaActual();
++            if (textura == null)
++                return;
++
++            Rectangle limites = UI.LimitesOpacos(textura);
++            float alto = AltoSemaforoMundo;
++            float escala = alto / limites.Height;
++            Vector2 base_ = BaseSemaforoMundo;
++
++            Color brillo = ColorDelSemaforo();
++            if (brillo != Color.Transparent)
++            {
++                UI.Resplandor(spriteBatch, new Vector2(base_.X, base_.Y - alto * 0.62f), 90f, 110f, brillo * 0.45f);
++            }
++
++            spriteBatch.Draw(textura, base_, limites, Color.White, 0f,
++                new Vector2(limites.Width / 2f, limites.Height), escala, SpriteEffects.None, 0f);
++        }
++
++        /// <summary>Color del brillo según qué luces están prendidas en cada sprite.</summary>
++        private Color ColorDelSemaforo()
++        {
++            switch (_semaforo.Estado)
++            {
++                case EstadoSemaforo.Luz1: return Color.Transparent;            // todo apagado
++                case EstadoSemaforo.Luz2: return new Color(255, 190, 90);      // pre-stage
++                case EstadoSemaforo.Luz3: return new Color(255, 170, 60);      // ámbar (mitad)
++                case EstadoSemaforo.Luz4: return new Color(255, 200, 90);      // ámbar (todas)
++                case EstadoSemaforo.Verde: return new Color(80, 255, 120);
++                case EstadoSemaforo.Fallida: return new Color(255, 60, 60);
++                default: return Color.Transparent;
++            }
++        }
++
++        // ==================================================================
++        // HUD (sin cámara, coordenadas de pantalla)
++        // ==================================================================
++
+         public void DibujarHud(SpriteBatch spriteBatch, SpriteFont fuente)
+         {
+             if (_autoJugador == null)
+                 return;
+ 
+-            spriteBatch.DrawString(fuente, "CARRERA", new Vector2(50, 20), Color.Gold);
+-            spriteBatch.DrawString(fuente, $"Dinero: ${_jugador.Dinero}", new Vector2(50, 50), Color.White);
+-            spriteBatch.DrawString(fuente, $"Meta: {_autoJugador.ProgresoCarrera * 100:0}%", new Vector2(50, 80), Color.White);
+-            spriteBatch.DrawString(fuente, "W = ACELERAR   S = FRENAR   ESC = MENU", new Vector2(50, 110), Color.LightGray);
+-
+-            if (_texturaVelocimetro != null && _texturaAgujaVelocimetro != null)
+-            {
+-                int anchoPantalla = spriteBatch.GraphicsDevice.Viewport.Width;
+-                int altoPantalla = spriteBatch.GraphicsDevice.Viewport.Height;
+-
+-                float escalaTablero = EscalaTablero;
+-                int anchoTablero = (int)(_texturaVelocimetro.Width * escalaTablero);
+-                int altoTablero = (int)(_texturaVelocimetro.Height * escalaTablero);
+-                int tableroX = anchoPantalla - anchoTablero - 30;
+-                int tableroY = altoPantalla - altoTablero - 30;
+-
+-                Vector2 posicionTablero = new Vector2(tableroX, tableroY);
+-                spriteBatch.Draw(
+-                    _texturaVelocimetro,
+-                    posicionTablero,
+-                    null,
+-                    Color.White,
+-                    0f,
+-                    Vector2.Zero,
+-                    escalaTablero,
+-                    SpriteEffects.None,
+-                    0f);
+-
+-                float velocidadMaxima = 12f;
+-                float velocidadPorcentaje = _autoJugador.VelocidadActual / velocidadMaxima;
+-                if (velocidadPorcentaje < 0f) velocidadPorcentaje = 0f;
+-                if (velocidadPorcentaje > 1f) velocidadPorcentaje = 1f;
+-
+-                float rotacionAguja = MathHelper.Lerp(
+-                    MathHelper.ToRadians(AnguloAgujaEnVelocidadCero),
+-                    MathHelper.ToRadians(AnguloAgujaEnVelocidadMaxima),
+-                    velocidadPorcentaje);
+-
+-                Vector2 origenAguja = new Vector2(
+-                    PosicionOrigenAgujaX,
+-                    PosicionOrigenAgujaY);
+-
+-                Vector2 puntoPivotePantalla = posicionTablero + new Vector2(
+-                    PosicionPivotePantallaX * escalaTablero,
+-                    PosicionPivotePantallaY * escalaTablero);
+-
+-                float escalaAguja = EscalaAguja;
+-                spriteBatch.Draw(
+-                    _texturaAgujaVelocimetro,
+-                    puntoPivotePantalla,
+-                    null,
+-                    Color.White,
+-                    rotacionAguja,
+-                    origenAguja,
+-                    escalaAguja,
+-                    SpriteEffects.None,
+-                    0f);
++            int anchoPantalla = spriteBatch.GraphicsDevice.Viewport.Width;
++            int altoPantalla = spriteBatch.GraphicsDevice.Viewport.Height;
++
++            DibujarPanelTiempo(spriteBatch);
++            DibujarBarraProgreso(spriteBatch, anchoPantalla);
++            DibujarVelocimetro(spriteBatch, anchoPantalla, altoPantalla);
++
++            // Controles abajo a la izquierda
++            float x = 24;
++            float y = altoPantalla - 52;
++            x += UI.Tecla(spriteBatch, new Vector2(x, y), "W", "Acelerar (soltar = frenar)");
++            UI.Tecla(spriteBatch, new Vector2(x, y), "ESC", "Menú");
++
++            bool mostrarSemaforo = Estado == EstadoCarrera.Largada
++                || (Estado == EstadoCarrera.Corriendo && _tiempoMostrarVerde < DuracionVerde + 0.5f);
++
++            if (mostrarSemaforo)
++            {
++                float opacidad = 1f;
++                if (Estado == EstadoCarrera.Corriendo)
++                    opacidad = 1f - MathHelper.Clamp((_tiempoMostrarVerde - DuracionVerde) / 0.5f, 0f, 1f);
++
++                DibujarSemaforoHud(spriteBatch, anchoPantalla, altoPantalla, opacidad);
+             }
+ 
+-            if (Estado == EstadoCarrera.Largada)
++            if (Estado == EstadoCarrera.Terminada)
+             {
+-                int anchoPantalla = spriteBatch.GraphicsDevice.Viewport.Width;
+-                int altoPantalla = spriteBatch.GraphicsDevice.Viewport.Height;
++                DibujarResultado(spriteBatch, anchoPantalla, altoPantalla);
++            }
++        }
++
++        private void DibujarPanelTiempo(SpriteBatch spriteBatch)
++        {
++            Rectangle panel = new Rectangle(20, 20, 330, 132);
++            UI.Panel(spriteBatch, panel, 0.82f, UI.Acento);
++
++            UI.Texto(spriteBatch, UI.Fuente, "AV. LOPE DE VEGA  ·  400 m", new Vector2(panel.X + 18, panel.Y + 14), UI.TextoSecundario);
++
++            float tiempo = Estado == EstadoCarrera.Terminada && _tiempoFinalJugador > 0f ? _tiempoFinalJugador : _cronometro;
++            UI.Texto(spriteBatch, UI.Titulo, $"{tiempo:0.000}", new Vector2(panel.X + 16, panel.Y + 38), UI.TextoClaro);
++            UI.Texto(spriteBatch, UI.Fuente, "seg", new Vector2(panel.X + 20 + UI.Titulo.MeasureString($"{tiempo:0.000}").X, panel.Y + 64), UI.TextoSecundario);
++
++            int metrosRestantes = (int)Math.Ceiling(400f * (1f - _autoJugador.ProgresoCarrera));
++            UI.Texto(spriteBatch, UI.Fuente, "FALTAN", new Vector2(panel.X + 18, panel.Y + 100), UI.TextoSecundario);
++            UI.Texto(spriteBatch, UI.Negrita, $"{metrosRestantes} m", new Vector2(panel.X + 92, panel.Y + 97), UI.Acento);
++
++            UI.Chip(spriteBatch, new Vector2(panel.X, panel.Bottom + 10), "DINERO", UI.Dinero(_jugador.Dinero), UI.Verde);
++        }
++
++        /// <summary>Mini-mapa arriba al centro: dónde está cada auto entre la largada y la meta.</summary>
++        private void DibujarBarraProgreso(SpriteBatch spriteBatch, int anchoPantalla)
++        {
++            int ancho = (int)Math.Min(720, anchoPantalla * 0.4f);
++            Rectangle barra = new Rectangle(anchoPantalla / 2 - ancho / 2, 34, ancho, 8);
+ 
++            UI.Rect(spriteBatch, new Rectangle(barra.X - 70, barra.Y - 22, barra.Width + 140, 52), Color.Black * 0.45f);
++            UI.Texto(spriteBatch, UI.Fuente, "SALIDA", new Vector2(barra.X - 62, barra.Y - 8), UI.TextoSecundario, 0.75f, false);
++            UI.TextoDerecha(spriteBatch, UI.Fuente, "META", new Vector2(barra.Right + 62, barra.Y - 8), UI.Acento, 0.75f, false);
++
++            UI.Rect(spriteBatch, barra, Color.White * 0.15f);
++            DibujarCuadriculado(spriteBatch, barra.Right - 8, barra.Y - 4, 2, 4, 4);
++
++            Vector2 rival = new Vector2(barra.X + barra.Width * _autoRival.ProgresoCarrera, barra.Center.Y);
++            Vector2 jugador = new Vector2(barra.X + barra.Width * _autoJugador.ProgresoCarrera, barra.Center.Y);
++
++            UI.CirculoLleno(spriteBatch, rival, 8, UI.Rojo);
++            UI.TextoCentrado(spriteBatch, UI.Fuente, "RIVAL", rival + new Vector2(0, -18), UI.Rojo, 0.7f);
++            UI.CirculoLleno(spriteBatch, jugador, 9, UI.Acento);
++            UI.TextoCentrado(spriteBatch, UI.Fuente, "VOS", jugador + new Vector2(0, 19), UI.Acento, 0.7f);
++        }
++
++        private void DibujarVelocimetro(SpriteBatch spriteBatch, int anchoPantalla, int altoPantalla)
++        {
++            if (_texturaVelocimetro == null || _texturaAgujaVelocimetro == null)
++                return;
++
++            float escalaTablero = EscalaTablero * MathHelper.Clamp(altoPantalla / 1080f, 0.7f, 1.2f);
++            int anchoTablero = (int)(_texturaVelocimetro.Width * escalaTablero);
++            int altoTablero = (int)(_texturaVelocimetro.Height * escalaTablero);
++            int tableroX = anchoPantalla - anchoTablero - 30;
++            int tableroY = altoPantalla - altoTablero - 30;
++
++            UI.Resplandor(spriteBatch, new Vector2(tableroX + anchoTablero / 2f, tableroY + altoTablero / 2f),
++                anchoTablero * 0.75f, altoTablero * 0.75f, Color.Black * 0.7f);
++
++            Vector2 posicionTablero = new Vector2(tableroX, tableroY);
++            spriteBatch.Draw(
++                _texturaVelocimetro,
++                posicionTablero,
++                null,
++                Color.White,
++                0f,
++                Vector2.Zero,
++                escalaTablero,
++                SpriteEffects.None,
++                0f);
++
++            float velocidadMaxima = 12f;
++            float velocidadPorcentaje = _autoJugador.VelocidadActual / velocidadMaxima;
++            if (velocidadPorcentaje < 0f) velocidadPorcentaje = 0f;
++            if (velocidadPorcentaje > 1f) velocidadPorcentaje = 1f;
++
++            float rotacionAguja = MathHelper.Lerp(
++                MathHelper.ToRadians(AnguloAgujaEnVelocidadCero),
++                MathHelper.ToRadians(AnguloAgujaEnVelocidadMaxima),
++                velocidadPorcentaje);
++
++            Vector2 origenAguja = new Vector2(
++                PosicionOrigenAgujaX,
++                PosicionOrigenAgujaY);
++
++            Vector2 puntoPivotePantalla = posicionTablero + new Vector2(
++                PosicionPivotePantallaX * escalaTablero,
++                PosicionPivotePantallaY * escalaTablero);
++
++            // La aguja se escala igual que el tablero (antes quedaba fija si cambiaba el tablero).
++            float escalaAguja = EscalaAguja * (escalaTablero / EscalaTablero);
++            spriteBatch.Draw(
++                _texturaAgujaVelocimetro,
++                puntoPivotePantalla,
++                null,
++                Color.White,
++                rotacionAguja,
++                origenAguja,
++                escalaAguja,
++                SpriteEffects.None,
++                0f);
++
++            // Velocidad en números (aproximada para mostrar)
++            int kmh = (int)(_autoJugador.VelocidadActual * 18f);
++            UI.TextoCentrado(spriteBatch, UI.Titulo, kmh.ToString(), new Vector2(tableroX + anchoTablero / 2f, tableroY - 30), UI.TextoClaro, 0.9f);
++            UI.TextoCentrado(spriteBatch, UI.Fuente, "km/h", new Vector2(tableroX + anchoTablero / 2f, tableroY - 2), UI.TextoSecundario);
++        }
++
++        /// <summary>
++        /// ANTES: el semáforo se estiraba a 220x360 fijo en el medio de la pantalla. Como
++        /// cada sprite tiene distinto tamaño (99x298, 85x295, 89x300...) "saltaba" y se
++        /// deformaba en cada cambio de luz, y el número de la cuenta regresiva tapaba las luces.
++        /// AHORA: hay un solo semáforo, el de la pista (DibujarSemaforoEnLaPista), recortado
++        /// a su parte visible y escalado sin deformar. Acá en el HUD solo:
++        ///   1) oscurecemos la pantalla un instante en cada cambio de luz (efecto original),
++        ///   2) volvemos a dibujar el semáforo ENCIMA del oscurecido para que resalte,
++        ///   3) ponemos el texto AL COSTADO de las luces y la ayuda abajo.
++        /// </summary>
++        private void DibujarSemaforoHud(SpriteBatch spriteBatch, int anchoPantalla, int altoPantalla, float opacidad)
++        {
++            if (_camara == null)
++                return;
++
++            Texture2D textura = _semaforo.TexturaActual();
++            if (textura == null)
++                return;
++
++            Rectangle limites = UI.LimitesOpacos(textura);
++            float escala = AltoSemaforoMundo / limites.Height * _camara.Zoom;
++            float alto = limites.Height * escala;
++            float ancho = limites.Width * escala;
++            Vector2 basePie = _camara.MundoAPantalla(BaseSemaforoMundo);   // dónde está el poste en la pantalla
++
++            if (Estado == EstadoCarrera.Largada)
++            {
+                 if (_tiempoOscurecimiento > 0f)
+                 {
+                     float progreso = _tiempoOscurecimiento / DuracionOscurecimiento;
+-                    int transparencia = (int)(180f * progreso);
+-                    Rectangle pantallaCompleta = new Rectangle(0, 0, anchoPantalla, altoPantalla);
+-                    spriteBatch.Draw(_texturaPixel, pantallaCompleta, Color.Black * (transparencia / 255f));
++                    UI.Rect(spriteBatch, new Rectangle(0, 0, anchoPantalla, altoPantalla), Color.Black * (0.45f * progreso));
+                 }
+ 
+-                int anchoSemaforo = 220;
+-                int altoSemaforo = 360;
+-                Rectangle rectanguloSemaforo = new Rectangle(
+-                    (anchoPantalla / 2) - (anchoSemaforo / 2),
+-                    (altoPantalla / 2) - (altoSemaforo / 2),
+-                    anchoSemaforo,
+-                    altoSemaforo);
+-
+-                spriteBatch.Draw(_semaforo.TexturaActual(), rectanguloSemaforo, Color.White);
+-
+-                string contador = _semaforo.TextoActual();
+-                if (contador != "")
++                Color brillo = ColorDelSemaforo();
++                if (brillo != Color.Transparent)
+                 {
+-                    Vector2 tamañoTexto = fuente.MeasureString(contador);
+-                    float escala = contador.Length <= 1 ? 4f : 1.8f;
+-                    Vector2 posicionTexto = new Vector2(
+-                        (anchoPantalla / 2f) - ((tamañoTexto.X * escala) / 2f),
+-                        (altoPantalla / 2f) - ((tamañoTexto.Y * escala) / 2f));
+-
+-                    Color colorTexto = _semaforo.HuboSalidaAnticipada ? Color.Red : Color.White;
+-                    spriteBatch.DrawString(fuente, contador, posicionTexto, colorTexto, 0f, Vector2.Zero, escala, SpriteEffects.None, 0f);
++                    UI.Resplandor(spriteBatch, new Vector2(basePie.X, basePie.Y - alto * 0.62f), ancho * 2.4f, alto * 0.5f, brillo * 0.3f);
+                 }
++
++                spriteBatch.Draw(textura, basePie, limites, Color.White, 0f,
++                    new Vector2(limites.Width / 2f, limites.Height), escala, SpriteEffects.None, 0f);
+             }
+ 
+-            if (Estado == EstadoCarrera.Terminada)
++            // Texto al costado de las luces (no encima)
++            string texto = _semaforo.TextoActual();
++            if (texto != "")
+             {
+-                int anchoPantalla = spriteBatch.GraphicsDevice.Viewport.Width;
+-                int altoPantalla = spriteBatch.GraphicsDevice.Viewport.Height;
+-
+-                string resultado = "GANASTE";
+-                if (_autoJugador.Descalificado)
+-                    resultado = "SALIDA ANTICIPADA";
+-                else if (!GanoElJugador())
+-                    resultado = "PERDISTE";
+-
+-                Vector2 posicionResultado = new Vector2(
+-                    (anchoPantalla / 2f) - (fuente.MeasureString(resultado).X / 2f),
+-                    (altoPantalla / 2f) - 150f);
+-
+-                spriteBatch.DrawString(fuente, resultado, posicionResultado, Color.Yellow);
+-                spriteBatch.DrawString(
+-                    fuente,
+-                    "ENTER = REPETIR CARRERA",
+-                    new Vector2((anchoPantalla / 2f) - 150f, altoPantalla / 2f),
+-                    Color.White);
+-                spriteBatch.DrawString(
+-                    fuente,
+-                    "ESC = VOLVER AL MENU",
+-                    new Vector2((anchoPantalla / 2f) - 130f, (altoPantalla / 2f) + 40f),
+-                    Color.LightGray);
++                Color colorTexto = UI.TextoClaro;
++                if (_semaforo.EstaEnVerde) colorTexto = UI.Verde;
++                if (_semaforo.HuboSalidaAnticipada) colorTexto = UI.Rojo;
++
++                float escalaTexto = texto.Length <= 1 ? 2.4f : 1f;
++                Vector2 medida = UI.Titulo.MeasureString(texto) * escalaTexto;
++                Vector2 posicion = new Vector2(basePie.X + ancho / 2f + 40f, basePie.Y - alto * 0.6f - medida.Y / 2f);
++                UI.Texto(spriteBatch, UI.Titulo, texto, posicion, colorTexto * opacidad, escalaTexto);
+             }
++
++            // Ayuda abajo al centro, sobre la vereda (no tapa los autos)
++            if (Estado == EstadoCarrera.Largada && !_semaforo.EstaEnVerde)
++            {
++                string ayuda = "Esperá el VERDE y apretá  W";
++                string aviso = "Si acelerás antes, quedás descalificado";
++                Vector2 medida = UI.Negrita.MeasureString(ayuda);
++                Rectangle caja = new Rectangle((int)(anchoPantalla / 2f - medida.X / 2f - 30), altoPantalla - 150, (int)medida.X + 60, 70);
++                UI.Rect(spriteBatch, caja, Color.Black * 0.7f);
++                UI.Rect(spriteBatch, new Rectangle(caja.X, caja.Y, caja.Width, 3), UI.Acento);
++                UI.TextoCentrado(spriteBatch, UI.Negrita, ayuda, new Vector2(caja.Center.X, caja.Y + 22), UI.TextoClaro);
++                UI.TextoCentrado(spriteBatch, UI.Fuente, aviso, new Vector2(caja.Center.X, caja.Y + 50), UI.TextoSecundario, 0.9f);
++            }
++        }
++
++        private void DibujarResultado(SpriteBatch spriteBatch, int anchoPantalla, int altoPantalla)
++        {
++            UI.Rect(spriteBatch, new Rectangle(0, 0, anchoPantalla, altoPantalla), Color.Black * 0.55f);
++
++            bool descalificado = _autoJugador.Descalificado;
++            bool gano = !descalificado && GanoElJugador();
++
++            string titulo = "GANASTE";
++            Color colorTitulo = UI.Verde;
++            string subtitulo = "¡Le sacaste la ficha al rival!";
++            if (descalificado)
++            {
++                titulo = "SALIDA ANTICIPADA";
++                colorTitulo = UI.Rojo;
++                subtitulo = "Aceleraste antes del verde: quedás descalificado.";
++            }
++            else if (!gano)
++            {
++                titulo = "PERDISTE";
++                colorTitulo = UI.Rojo;
++                subtitulo = "El rival cruzó primero. ¡Mejorá el auto en el taller!";
++            }
++
++            Rectangle panel = new Rectangle(anchoPantalla / 2 - 300, altoPantalla / 2 - 210, 600, 420);
++            UI.Panel(spriteBatch, panel, 0.97f, colorTitulo);
++
++            // Semáforo chiquito en rojo si fue salida anticipada (usa el sprite semaforoFallida)
++            if (descalificado)
++            {
++                Texture2D fallida = _semaforo.TexturaActual();
++                Rectangle limites = UI.LimitesOpacos(fallida);
++                float escala = 150f / limites.Height;
++                spriteBatch.Draw(fallida, new Vector2(panel.X + 50, panel.Y + 30), limites, Color.White, 0f, Vector2.Zero, escala, SpriteEffects.None, 0f);
++            }
++
++            UI.TextoCentrado(spriteBatch, UI.Titulo, titulo, new Vector2(panel.Center.X, panel.Y + 62), colorTitulo, descalificado ? 0.85f : 1.2f);
++            UI.TextoCentrado(spriteBatch, UI.Fuente, subtitulo, new Vector2(panel.Center.X, panel.Y + 116), UI.TextoSecundario);
++
++            int y = panel.Y + 160;
++            DibujarFilaResultado(spriteBatch, panel, ref y, "Tu tiempo", _tiempoFinalJugador > 0f ? $"{_tiempoFinalJugador:0.000} s" : "--", UI.TextoClaro);
++            DibujarFilaResultado(spriteBatch, panel, ref y, "Tiempo del rival", _tiempoFinalRival > 0f ? $"{_tiempoFinalRival:0.000} s" : "--", UI.TextoClaro);
++            DibujarFilaResultado(spriteBatch, panel, ref y, "Tiempo de reacción", _tiempoReaccion >= 0f ? $"{_tiempoReaccion:0.000} s" : "--", ColorReaccion());
++            DibujarFilaResultado(spriteBatch, panel, ref y, "Premio", _premioCobrado ? "+ " + UI.Dinero(PremioPorGanar) : UI.Dinero(0), _premioCobrado ? UI.Verde : UI.TextoSecundario);
++
++            float x = panel.X + 110;
++            float yTeclas = panel.Bottom - 58;
++            x += UI.Tecla(spriteBatch, new Vector2(x, yTeclas), "ENTER", "Revancha");
++            UI.Tecla(spriteBatch, new Vector2(x, yTeclas), "ESC", "Volver al menú");
++        }
++
++        private void DibujarFilaResultado(SpriteBatch spriteBatch, Rectangle panel, ref int y, string etiqueta, string valor, Color colorValor)
++        {
++            UI.Rect(spriteBatch, new Rectangle(panel.X + 40, y + 34, panel.Width - 80, 1), UI.BordePanel * 0.6f);
++            UI.Texto(spriteBatch, UI.Fuente, etiqueta, new Vector2(panel.X + 44, y + 6), UI.TextoSecundario);
++            UI.TextoDerecha(spriteBatch, UI.Negrita, valor, new Vector2(panel.Right - 44, y + 3), colorValor);
++            y += 44;
++        }
++
++        /// <summary>Verde si la reacción fue muy buena, amarillo si normal, rojo si lenta.</summary>
++        private Color ColorReaccion()
++        {
++            if (_tiempoReaccion < 0f) return UI.TextoSecundario;
++            if (_tiempoReaccion < 0.3f) return UI.Verde;
++            if (_tiempoReaccion < 0.6f) return UI.Acento;
++            return UI.Rojo;
+         }
+     }
+ }
+diff --git a/La35Tunning/Escenas/PantallaConcesionario.cs b/La35Tunning/Escenas/PantallaConcesionario.cs
+index 2a8b924..cea9b64 100644
+--- a/La35Tunning/Escenas/PantallaConcesionario.cs
++++ b/La35Tunning/Escenas/PantallaConcesionario.cs
+@@ -1,10 +1,12 @@
+ using System;
+ using System.Collections.Generic;
++using System.Linq;
+ using Microsoft.Xna.Framework;
+ using Microsoft.Xna.Framework.Graphics;
+ using Microsoft.Xna.Framework.Input;
+ using La35Tunning.Entidades;
+ using La35Tunning.Modelos;
++using La35Tunning.Sistemas;
+ 
+ namespace La35Tunning.Escenas
+ {
+@@ -27,8 +29,18 @@ namespace La35Tunning.Escenas
+         private readonly List<(Rectangle rect, Auto auto)> _botonesEquipar = new();
+         private readonly List<(Rectangle rect, Auto auto)> _botonesVender = new();
+ 
+-        private readonly Rectangle _rectFlechaArriba = new Rectangle(700, 145, 40, 35);
+-        private readonly Rectangle _rectFlechaAbajo = new Rectangle(700, 565, 40, 35);
++        // ANTES eran "readonly" con posiciones fijas. AHORA se recalculan en Draw()
++        // según el tamaño de la pantalla, para que todo quede centrado.
++        private Rectangle _rectFlechaArriba = new Rectangle(700, 145, 40, 35);
++        private Rectangle _rectFlechaAbajo = new Rectangle(700, 565, 40, 35);
++
++        // ---- NUEVO ----
++        private Rectangle _rectVolver;
++        private Point _posicionMouse;
++        private bool _mensajeEsError;
++
++        /// <summary>NUEVO: true cuando tocan el botón VOLVER (Game1 vuelve al menú).</summary>
++        public bool DebeVolver { get; private set; }
+ 
+         public PantallaConcesionario(Sistemas.Concesionario concesionario, Jugador jugador, GraphicsDevice graphicsDevice)
+         {
+@@ -44,11 +56,13 @@ namespace La35Tunning.Escenas
+             _scrollCatalogo = 0;
+             _mensajeFeedback = "";
+             _tiempoMensajeRestante = 0f;
++            DebeVolver = false;
+         }
+ 
+         public void Update(GameTime gameTime)
+         {
+             MouseState mouseActual = Mouse.GetState();
++            _posicionMouse = mouseActual.Position;
+ 
+             if (!_entradaInicializada)
+             {
+@@ -74,6 +88,7 @@ namespace La35Tunning.Escenas
+ 
+                 if (_rectFlechaArriba.Contains(posicion)) _scrollCatalogo--;
+                 if (_rectFlechaAbajo.Contains(posicion)) _scrollCatalogo++;
++                if (_rectVolver.Contains(posicion)) DebeVolver = true;
+ 
+                 foreach (var boton in _botonesComprar)
+                 {
+@@ -115,6 +130,27 @@ namespace La35Tunning.Escenas
+         {
+             _mensajeFeedback = mensaje;
+             _tiempoMensajeRestante = 3f;
++            // Los mensajes de error del Concesionario empiezan con "No" o "Ese" (ver Sistemas/Concesionario.cs).
++            _mensajeEsError = mensaje.StartsWith("No") || mensaje.StartsWith("Ese");
++        }
++
++        // ==================================================================
++        // DIBUJO
++        // ==================================================================
++
++        // Medidas calculadas en cada Draw según la pantalla.
++        private int _origenX, _origenY, _anchoColumna, _altoTarjeta;
++        private const int SeparacionTarjetas = 14;
++
++        private void CalcularLayout(int anchoPantalla, int altoPantalla)
++        {
++            int anchoLienzo = Math.Min(1400, anchoPantalla - 40);
++            _anchoColumna = (anchoLienzo - 40) / 2;
++            _altoTarjeta = (int)MathHelper.Clamp((altoPantalla - 330) / 4f - SeparacionTarjetas, 104f, 140f);
++
++            int altoLienzo = 150 + 4 * (_altoTarjeta + SeparacionTarjetas) + 80;
++            _origenX = (anchoPantalla - anchoLienzo) / 2;
++            _origenY = Math.Max(12, (altoPantalla - altoLienzo) / 2);
+         }
+ 
+         public void Draw(SpriteBatch spriteBatch, SpriteFont fuente, GraphicsDevice graphicsDevice)
+@@ -123,117 +159,248 @@ namespace La35Tunning.Escenas
+             _botonesEquipar.Clear();
+             _botonesVender.Clear();
+ 
+-            spriteBatch.DrawString(fuente, "CONCESIONARIO", new Vector2(60, 40), Color.Gold);
+-            spriteBatch.DrawString(fuente, $"Dinero: ${_jugador.Dinero}", new Vector2(60, 75), Color.White);
++            int ancho = graphicsDevice.Viewport.Width;
++            int alto = graphicsDevice.Viewport.Height;
++            CalcularLayout(ancho, alto);
++
++            DibujarFondoShowroom(spriteBatch, ancho, alto);
++
++            // ---- Encabezado ----
++            UI.Texto(spriteBatch, UI.Titulo, "CONCESIONARIO", new Vector2(_origenX, _origenY + 6), UI.TextoClaro);
++            UI.Texto(spriteBatch, UI.Fuente, "Comprá autos nuevos, elegí con cuál correr o vendé los que no uses.",
++                new Vector2(_origenX + 2, _origenY + 62), UI.TextoSecundario);
++
++            string dinero = UI.Dinero(_jugador.Dinero);
++            int anchoLienzo = _anchoColumna * 2 + 40;
++            UI.Chip(spriteBatch, new Vector2(_origenX + anchoLienzo - UI.AnchoChip("DINERO", dinero), _origenY + 20), "DINERO", dinero, UI.Verde);
++
++            UI.Rect(spriteBatch, new Rectangle(_origenX, _origenY + 96, anchoLienzo, 2), UI.Acento * 0.7f);
+ 
+             DibujarCatalogo(spriteBatch, fuente);
+             DibujarGarage(spriteBatch, fuente);
+ 
++            // ---- Pie: botón volver + mensaje ----
++            int pieY = _origenY + 150 + 4 * (_altoTarjeta + SeparacionTarjetas) + 10;
++            pieY = Math.Min(pieY, alto - 60);
++            _rectVolver = new Rectangle(_origenX, pieY, 170, 44);
++            UI.Boton(spriteBatch, _rectVolver, "< VOLVER", _rectVolver.Contains(_posicionMouse));
++            UI.Texto(spriteBatch, UI.Fuente, "o presioná ESC", new Vector2(_rectVolver.Right + 14, pieY + 12), UI.TextoSecundario);
++
+             if (_tiempoMensajeRestante > 0f)
+             {
+-                spriteBatch.DrawString(fuente, _mensajeFeedback, new Vector2(60, 660), Color.Cyan);
++                DibujarMensaje(spriteBatch, ancho, pieY);
++            }
++        }
++
++        private void DibujarFondoShowroom(SpriteBatch spriteBatch, int ancho, int alto)
++        {
++            UI.Rect(spriteBatch, new Rectangle(0, 0, ancho, alto), UI.FondoOscuro);
++            UI.Degrade(spriteBatch, new Rectangle(0, 0, ancho, alto), new Color(30, 36, 52));
++
++            // Tres "reflectores" de techo
++            for (int i = 0; i < 3; i++)
++            {
++                float x = ancho * (0.2f + 0.3f * i);
++                UI.Resplandor(spriteBatch, new Vector2(x, -40), ancho * 0.22f, alto * 0.55f, Color.White * 0.05f);
+             }
+ 
+-            spriteBatch.DrawString(fuente, "Presiona [ ESC ] para volver al menu", new Vector2(60, 700), Color.Gray);
++            // Piso con líneas, como un salón de exposición
++            int piso = (int)(alto * 0.78f);
++            UI.Degrade(spriteBatch, new Rectangle(0, piso, ancho, alto - piso), Color.Black * 0.5f, true);
++            for (int i = 0; i < 6; i++)
++            {
++                int y = piso + i * i * 6;
++                UI.Rect(spriteBatch, new Rectangle(0, y, ancho, 1), Color.White * (0.03f + i * 0.005f));
++            }
+         }
+ 
+         private void DibujarCatalogo(SpriteBatch spriteBatch, SpriteFont fuente)
+         {
+-            spriteBatch.DrawString(fuente, "EN VENTA", new Vector2(60, 115), Color.Yellow);
++            int x = _origenX;
++            int y = _origenY + 112;
+ 
+             List<Auto> catalogo = _concesionario.ObtenerCatalogo();
+ 
++            UI.Texto(spriteBatch, UI.Negrita, "EN VENTA", new Vector2(x, y), UI.Acento);
++            UI.Texto(spriteBatch, UI.Fuente, $"{catalogo.Count} disponibles", new Vector2(x + 120, y + 3), UI.TextoSecundario);
++
++            // Flechas de scroll al costado del título
++            _rectFlechaArriba = new Rectangle(x + _anchoColumna - 92, y - 4, 42, 32);
++            _rectFlechaAbajo = new Rectangle(x + _anchoColumna - 44, y - 4, 42, 32);
++
++            y += 38;
++
+             if (catalogo.Count == 0)
+             {
+-                spriteBatch.DrawString(fuente, "Ya compraste todos los autos disponibles.", new Vector2(60, 150), Color.Gray);
++                Rectangle vacio = new Rectangle(x, y, _anchoColumna, _altoTarjeta);
++                UI.Panel(spriteBatch, vacio, 0.7f);
++                UI.TextoCentrado(spriteBatch, UI.Negrita, "¡Ya compraste todos los autos!", new Vector2(vacio.Center.X, vacio.Center.Y - 12), UI.TextoClaro);
++                UI.TextoCentrado(spriteBatch, UI.Fuente, "Volvé cuando lleguen modelos nuevos.", new Vector2(vacio.Center.X, vacio.Center.Y + 16), UI.TextoSecundario);
+                 return;
+             }
+ 
+-            int y = 150;
+             int ultimoIndice = Math.Min(catalogo.Count, _scrollCatalogo + FilasVisibles);
+ 
+             for (int i = _scrollCatalogo; i < ultimoIndice; i++)
+             {
+                 Auto auto = catalogo[i];
+-                Rectangle fila = new Rectangle(60, y, 610, 120);
+-                DibujarFilaAuto(spriteBatch, fuente, fila, auto);
+-
+-                Rectangle botonComprar = new Rectangle(fila.Right - 150, fila.Bottom - 45, 130, 35);
++                Rectangle fila = new Rectangle(x, y, _anchoColumna, _altoTarjeta);
+                 bool puedeComprar = _jugador.Dinero >= auto.Precio;
+ 
+-                DibujarBoton(spriteBatch, fuente, botonComprar, "COMPRAR",
+-                    puedeComprar ? Color.DarkGreen : Color.DarkSlateGray,
+-                    puedeComprar ? Color.White : Color.Gray);
++                DibujarFilaAuto(spriteBatch, fuente, fila, auto);
++
++                Rectangle botonComprar = new Rectangle(fila.Right - 156, fila.Center.Y - 21, 140, 42);
++                DibujarBotonColor(spriteBatch, botonComprar, "COMPRAR", puedeComprar, new Color(28, 120, 70));
+ 
+                 if (puedeComprar)
+                 {
+                     _botonesComprar.Add((botonComprar, i));
+                 }
++                else
++                {
++                    decimal falta = auto.Precio - _jugador.Dinero;
++                    UI.TextoCentrado(spriteBatch, UI.Fuente, "Te faltan " + UI.Dinero(falta),
++                        new Vector2(botonComprar.Center.X, botonComprar.Bottom + 14), UI.Rojo, 0.8f, false);
++                }
+ 
+-                y += fila.Height + 15;
++                y += fila.Height + SeparacionTarjetas;
+             }
+ 
+             bool hayMasArriba = _scrollCatalogo > 0;
+             bool hayMasAbajo = _scrollCatalogo + FilasVisibles < catalogo.Count;
+ 
+-            DibujarBoton(spriteBatch, fuente, _rectFlechaArriba, "^",
+-                hayMasArriba ? Color.DarkSlateGray : Color.Black, hayMasArriba ? Color.White : Color.DarkGray);
+-            DibujarBoton(spriteBatch, fuente, _rectFlechaAbajo, "v",
+-                hayMasAbajo ? Color.DarkSlateGray : Color.Black, hayMasAbajo ? Color.White : Color.DarkGray);
++            UI.Boton(spriteBatch, _rectFlechaArriba, "^", _rectFlechaArriba.Contains(_posicionMouse), hayMasArriba);
++            UI.Boton(spriteBatch, _rectFlechaAbajo, "v", _rectFlechaAbajo.Contains(_posicionMouse), hayMasAbajo);
+         }
+ 
+         private void DibujarGarage(SpriteBatch spriteBatch, SpriteFont fuente)
+         {
+-            spriteBatch.DrawString(fuente, "TU GARAGE", new Vector2(780, 115), Color.Yellow);
++            int x = _origenX + _anchoColumna + 40;
++            int y = _origenY + 112;
+ 
+             IReadOnlyList<Auto> autos = _jugador.AutosComprados;
+ 
++            UI.Texto(spriteBatch, UI.Negrita, "TU GARAGE", new Vector2(x, y), UI.Acento);
++            UI.Texto(spriteBatch, UI.Fuente, $"{autos.Count} {(autos.Count == 1 ? "auto" : "autos")}", new Vector2(x + 140, y + 3), UI.TextoSecundario);
++            y += 38;
++
+             if (autos.Count == 0)
+             {
+-                spriteBatch.DrawString(fuente, "Todavía no compraste ningún auto.", new Vector2(780, 150), Color.Gray);
++                Rectangle vacio = new Rectangle(x, y, _anchoColumna, _altoTarjeta);
++                UI.Panel(spriteBatch, vacio, 0.7f);
++                UI.TextoCentrado(spriteBatch, UI.Negrita, "Todavía no compraste ningún auto.", new Vector2(vacio.Center.X, vacio.Center.Y - 12), UI.TextoClaro);
++                UI.TextoCentrado(spriteBatch, UI.Fuente, "Elegí uno de la izquierda para empezar a correr.", new Vector2(vacio.Center.X, vacio.Center.Y + 16), UI.TextoSecundario);
+                 return;
+             }
+ 
+-            int y = 150;
+             foreach (Auto auto in autos)
+             {
+-                Rectangle fila = new Rectangle(780, y, 610, 120);
++                Rectangle fila = new Rectangle(x, y, _anchoColumna, _altoTarjeta);
++                bool esElEquipado = _jugador.AutoActual == auto;
++
+                 DibujarFilaAuto(spriteBatch, fuente, fila, auto);
+ 
+-                bool esElEquipado = _jugador.AutoActual == auto;
++                if (esElEquipado)
++                {
++                    UI.Borde(spriteBatch, fila, 2, UI.Acento);
++                }
+ 
+-                Rectangle botonEquipar = new Rectangle(fila.Right - 300, fila.Bottom - 45, 130, 35);
+-                Rectangle botonVender = new Rectangle(fila.Right - 150, fila.Bottom - 45, 130, 35);
++                Rectangle botonEquipar = new Rectangle(fila.Right - 156, fila.Y + 12, 140, 38);
++                Rectangle botonVender = new Rectangle(fila.Right - 156, fila.Bottom - 46, 140, 36);
+ 
+                 if (esElEquipado)
+                 {
+-                    DibujarBoton(spriteBatch, fuente, botonEquipar, "EQUIPADO", Color.DarkSlateGray, Color.Gold);
++                    UI.Rect(spriteBatch, botonEquipar, UI.Acento * 0.15f);
++                    UI.Borde(spriteBatch, botonEquipar, 1, UI.Acento);
++                    UI.TextoCentrado(spriteBatch, UI.Negrita, "EN USO", new Vector2(botonEquipar.Center.X, botonEquipar.Center.Y + 1), UI.Acento);
+                 }
+                 else
+                 {
+-                    DibujarBoton(spriteBatch, fuente, botonEquipar, "EQUIPAR", Color.DarkBlue, Color.White);
++                    DibujarBotonColor(spriteBatch, botonEquipar, "EQUIPAR", true, new Color(36, 92, 160));
+                     _botonesEquipar.Add((botonEquipar, auto));
+                 }
+ 
+-                DibujarBoton(spriteBatch, fuente, botonVender, "VENDER", Color.DarkRed, Color.White);
++                DibujarBotonColor(spriteBatch, botonVender, "VENDER", true, new Color(140, 40, 48));
+                 _botonesVender.Add((botonVender, auto));
+ 
+-                y += fila.Height + 15;
++                y += fila.Height + SeparacionTarjetas;
++
++                // Si no entran más tarjetas en pantalla, dejamos de dibujar.
++                if (y + _altoTarjeta > spriteBatch.GraphicsDevice.Viewport.Height - 70)
++                    break;
+             }
+         }
+ 
++        /// <summary>
++        /// Tarjeta de un auto: foto (con sus llantas puestas), nombre, precio y barras
++        /// de estadísticas. ANTES: rectángulo gris con la imagen estirada a 150x100.
++        /// </summary>
+         private void DibujarFilaAuto(SpriteBatch spriteBatch, SpriteFont fuente, Rectangle fila, Auto auto)
+         {
+-            spriteBatch.Draw(_texturaPixel, fila, new Color(30, 30, 35));
++            bool mouseEncima = fila.Contains(_posicionMouse);
++            UI.Panel(spriteBatch, fila, mouseEncima ? 1f : 0.9f);
++            if (mouseEncima)
++            {
++                UI.Rect(spriteBatch, fila, Color.White * 0.03f);
++            }
++
++            // "Vidriera" donde se apoya el auto
++            int anchoFoto = (int)MathHelper.Clamp(fila.Height * 1.9f, 190f, 260f);
++            Rectangle foto = new Rectangle(fila.X + 10, fila.Y + 10, anchoFoto, fila.Height - 20);
++            UI.Rect(spriteBatch, foto, new Color(12, 14, 19));
++            UI.Resplandor(spriteBatch, new Vector2(foto.Center.X, foto.Y), foto.Width * 0.6f, foto.Height * 0.9f, Color.White * 0.08f);
++            UI.Degrade(spriteBatch, new Rectangle(foto.X, foto.Bottom - 22, foto.Width, 22), Color.White * 0.05f, true);
++            UI.Borde(spriteBatch, foto, 1, Color.Black * 0.6f);
+ 
+             if (auto.TexturaAuto != null)
+             {
+-                Rectangle destinoImagen = new Rectangle(fila.X + 10, fila.Y + 10, 150, 100);
+-                spriteBatch.Draw(auto.TexturaAuto, destinoImagen, Color.White);
++                Rectangle zonaAuto = new Rectangle(foto.X + 14, foto.Y + 10, foto.Width - 28, foto.Height - 22);
++                auto.DibujarEnArea(spriteBatch, zonaAuto, Color.White);
+             }
+ 
+-            spriteBatch.DrawString(fuente, auto.Modelo, new Vector2(fila.X + 170, fila.Y + 10), Color.White);
+-            spriteBatch.DrawString(fuente, $"${auto.Precio}", new Vector2(fila.X + 170, fila.Y + 40), Color.LightGreen);
++            // Datos
++            int textoX = foto.Right + 18;
++            UI.Texto(spriteBatch, UI.Negrita, auto.Modelo, new Vector2(textoX, fila.Y + 12), UI.TextoClaro);
++
++            bool alcanza = _jugador.Dinero >= auto.Precio || _jugador.AutosComprados.Contains(auto);
++            UI.Texto(spriteBatch, UI.Negrita, UI.Dinero(auto.Precio), new Vector2(textoX, fila.Y + 40), alcanza ? UI.Acento : UI.Rojo);
++
++            int anchoBarra = Math.Max(60, fila.Right - 170 - (textoX + 105));
++            int barraY = fila.Y + 74;
++            if (fila.Height >= 120)
++            {
++                DibujarEstadistica(spriteBatch, "VEL. MÁX.", (auto.VelocidadMaximaBase - 6f) / 3f, textoX, barraY, anchoBarra, UI.Azul);
++                DibujarEstadistica(spriteBatch, "ACELERAC.", (auto.AceleracionBase - 0.10f) / 0.10f, textoX, barraY + 24, anchoBarra, UI.Verde);
++            }
++            else
++            {
++                DibujarEstadistica(spriteBatch, "VEL. MÁX.", (auto.VelocidadMaximaBase - 6f) / 3f, textoX, barraY, anchoBarra, UI.Azul);
++            }
++        }
++
++        private void DibujarEstadistica(SpriteBatch spriteBatch, string nombre, float valor, int x, int y, int anchoBarra, Color color)
++        {
++            UI.Texto(spriteBatch, UI.Fuente, nombre, new Vector2(x, y - 3), UI.TextoSecundario, 0.85f, false);
++            UI.Barra(spriteBatch, new Rectangle(x + 100, y, anchoBarra, 10), valor, color);
++        }
++
++        private void DibujarBotonColor(SpriteBatch spriteBatch, Rectangle rect, string texto, bool habilitado, Color color)
++        {
++            UI.Boton(spriteBatch, rect, texto, habilitado && rect.Contains(_posicionMouse), habilitado, color);
++        }
++
++        private void DibujarMensaje(SpriteBatch spriteBatch, int anchoPantalla, int y)
++        {
++            float opacidad = MathHelper.Clamp(_tiempoMensajeRestante / 0.4f, 0f, 1f);
++            Color color = _mensajeEsError ? UI.Rojo : UI.Verde;
++
++            Vector2 medida = UI.Negrita.MeasureString(_mensajeFeedback);
++            Rectangle caja = new Rectangle((int)(anchoPantalla / 2f - medida.X / 2f - 24), y, (int)medida.X + 48, 44);
++
++            UI.Rect(spriteBatch, caja, Color.Black * 0.8f * opacidad);
++            UI.Rect(spriteBatch, new Rectangle(caja.X, caja.Y, 4, caja.Height), color * opacidad);
++            UI.Borde(spriteBatch, caja, 1, color * 0.6f * opacidad);
++            UI.TextoCentrado(spriteBatch, UI.Negrita, _mensajeFeedback, new Vector2(caja.Center.X, caja.Center.Y + 1), UI.TextoClaro * opacidad);
+         }
+ 
+         private void DibujarBoton(SpriteBatch spriteBatch, SpriteFont fuente, Rectangle rectangulo, string texto, Color colorFondo, Color colorTexto)
+diff --git a/La35Tunning/Escenas/PantallaConfiguracion.cs b/La35Tunning/Escenas/PantallaConfiguracion.cs
+index d376d29..ab2b262 100644
+--- a/La35Tunning/Escenas/PantallaConfiguracion.cs
++++ b/La35Tunning/Escenas/PantallaConfiguracion.cs
+@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
+ using Microsoft.Xna.Framework.Input;
+ using Microsoft.Xna.Framework.Media;
+ using System;
++using La35Tunning.Sistemas;
+ 
+ namespace La35Tunning.Escenas
+ {
+@@ -16,6 +17,23 @@ namespace La35Tunning.Escenas
+         private bool _entradaInicializada;
+         private int _volumen = 0;
+ 
++        // ---- NUEVO ----
++        // Todas las posiciones están pensadas sobre un "lienzo" de 900x500 que después
++        // se centra en la pantalla con ObtenerDesplazamiento(). Así el mismo rectángulo
++        // sirve para DIBUJAR el botón y para saber si le hicieron CLIC.
++        private const int AnchoLienzo = 900;
++        private const int AltoLienzo = 500;
++
++        private static readonly Rectangle RectPanel = new Rectangle(150, 20, 600, 460);
++        private static readonly Rectangle RectBajarVolumen = new Rectangle(200, 215, 70, 50);
++        private static readonly Rectangle RectSubirVolumen = new Rectangle(630, 215, 70, 50);
++        private static readonly Rectangle RectBarraVolumen = new Rectangle(290, 232, 320, 16);
++        private static readonly Rectangle RectZonaClicBarra = new Rectangle(290, 220, 320, 40);
++        private static readonly Rectangle RectVolver = new Rectangle(300, 380, 300, 56);
++
++        private Point _mouseEnLienzo;
++        private float _tiempoDesdeEntrada;
++
+         public bool DebeVolver { get; private set; }
+ 
+         public PantallaConfiguracion(GraphicsDevice graphicsDevice)
+@@ -31,12 +49,17 @@ namespace La35Tunning.Escenas
+         {
+             DebeVolver = false;
+             _entradaInicializada = false;
++            _tiempoDesdeEntrada = 0f;
+         }
+ 
+         public void Update(GameTime gameTime)
+         {
+             MouseState mouseActual = Mouse.GetState();
+             KeyboardState tecladoActual = Keyboard.GetState();
++            _tiempoDesdeEntrada += (float)gameTime.ElapsedGameTime.TotalSeconds;
++
++            Vector2 desplazamiento = ObtenerDesplazamiento();
++            _mouseEnLienzo = mouseActual.Position - new Point((int)desplazamiento.X, (int)desplazamiento.Y);
+ 
+             if (!_entradaInicializada)
+             {
+@@ -50,11 +73,18 @@ namespace La35Tunning.Escenas
+ 
+             if (hizoClic)
+             {
+-                Vector2 desplazamiento = ObtenerDesplazamiento();
+-                Point posicion = mouseActual.Position - new Point((int)desplazamiento.X, (int)desplazamiento.Y);
+-                if (new Rectangle(250, 220, 80, 50).Contains(posicion)) CambiarVolumen(-10);
+-                if (new Rectangle(550, 220, 80, 50).Contains(posicion)) CambiarVolumen(10);
+-                if (new Rectangle(300, 350, 300, 55).Contains(posicion)) DebeVolver = true;
++                Point posicion = _mouseEnLienzo;
++                if (RectBajarVolumen.Contains(posicion)) CambiarVolumen(-10);
++                if (RectSubirVolumen.Contains(posicion)) CambiarVolumen(10);
++                if (RectVolver.Contains(posicion)) DebeVolver = true;
++            }
++
++            // NUEVO: se puede hacer clic (o arrastrar) directamente sobre la barra de volumen.
++            if (mouseActual.LeftButton == ButtonState.Pressed && RectZonaClicBarra.Contains(_mouseEnLienzo))
++            {
++                float proporcion = (_mouseEnLienzo.X - RectBarraVolumen.X) / (float)RectBarraVolumen.Width;
++                int nuevoVolumen = (int)Math.Round(MathHelper.Clamp(proporcion, 0f, 1f) * 10f) * 10;
++                CambiarVolumen(nuevoVolumen - _volumen);
+             }
+ 
+             if (tecladoActual.IsKeyDown(Keys.Left) && _tecladoAnterior.IsKeyUp(Keys.Left)) CambiarVolumen(-10);
+@@ -67,12 +97,46 @@ namespace La35Tunning.Escenas
+ 
+         public void Draw(SpriteBatch spriteBatch, SpriteFont fuente, GraphicsDevice graphicsDevice)
+         {
+-            spriteBatch.DrawString(fuente, "CONFIGURACION", Mover(new Vector2(300, 70)), Color.Gold);
+-            spriteBatch.DrawString(fuente, "VOLUMEN", Mover(new Vector2(300, 150)), Color.White);
+-            DibujarBoton(spriteBatch, Mover(new Rectangle(250, 220, 80, 50)), "<", fuente);
+-            DibujarBoton(spriteBatch, Mover(new Rectangle(550, 220, 80, 50)), ">", fuente);
+-            spriteBatch.DrawString(fuente, $"{_volumen}%", Mover(new Vector2(390, 235)), Color.White);
+-            DibujarBoton(spriteBatch, Mover(new Rectangle(300, 350, 300, 55)), "VOLVER", fuente);
++            int ancho = graphicsDevice.Viewport.Width;
++            int alto = graphicsDevice.Viewport.Height;
++
++            // Oscurecemos lo que haya detrás (Game1 dibuja el menú abajo): queda como ventana emergente.
++            float aparicion = MathHelper.Clamp(_tiempoDesdeEntrada / 0.2f, 0f, 1f);
++            UI.Rect(spriteBatch, new Rectangle(0, 0, ancho, alto), Color.Black * (0.7f * aparicion));
++
++            Rectangle panel = Mover(RectPanel);
++            UI.Panel(spriteBatch, panel, 0.97f, UI.Acento);
++
++            UI.TextoCentrado(spriteBatch, UI.Titulo, "CONFIGURACIÓN", Mover(new Vector2(450, 78)), UI.Acento);
++            UI.TextoCentrado(spriteBatch, UI.Fuente, "Ajustá el sonido del juego", Mover(new Vector2(450, 122)), UI.TextoSecundario);
++
++            UI.Rect(spriteBatch, Mover(new Rectangle(200, 150, 500, 1)), UI.BordePanel);
++
++            UI.Texto(spriteBatch, UI.Negrita, "VOLUMEN", Mover(new Vector2(200, 172)), UI.TextoClaro);
++            UI.TextoDerecha(spriteBatch, UI.Negrita, $"{_volumen}%", Mover(new Vector2(700, 172)), _volumen == 0 ? UI.Rojo : UI.Acento);
++
++            UI.Boton(spriteBatch, Mover(RectBajarVolumen), "<", RectBajarVolumen.Contains(_mouseEnLienzo));
++            UI.Boton(spriteBatch, Mover(RectSubirVolumen), ">", RectSubirVolumen.Contains(_mouseEnLienzo));
++
++            // Barra de volumen con "perilla"
++            Rectangle barra = Mover(RectBarraVolumen);
++            UI.Barra(spriteBatch, barra, _volumen / 100f, UI.Acento);
++            for (int i = 1; i < 10; i++)
++            {
++                int x = barra.X + barra.Width * i / 10;
++                UI.Rect(spriteBatch, new Rectangle(x, barra.Bottom + 4, 1, 5), UI.TextoSecundario * 0.5f);
++            }
++            Vector2 perilla = new Vector2(barra.X + barra.Width * (_volumen / 100f), barra.Center.Y);
++            UI.CirculoLleno(spriteBatch, perilla + new Vector2(0, 2), 13, Color.Black * 0.5f);
++            UI.CirculoLleno(spriteBatch, perilla, 12, Color.White);
++            UI.CirculoLleno(spriteBatch, perilla, 6, UI.Acento);
++
++            string estado = _volumen == 0 ? "Sonido silenciado" : "Música del menú activada";
++            UI.TextoCentrado(spriteBatch, UI.Fuente, estado, Mover(new Vector2(450, 290)), _volumen == 0 ? UI.Rojo * 0.9f : UI.Verde);
++            UI.TextoCentrado(spriteBatch, UI.Fuente, "Flechas IZQUIERDA / DERECHA para ajustar", Mover(new Vector2(450, 322)), UI.TextoSecundario);
++
++            UI.Boton(spriteBatch, Mover(RectVolver), "VOLVER", RectVolver.Contains(_mouseEnLienzo), true, new Color(52, 58, 76));
++            UI.TextoCentrado(spriteBatch, UI.Fuente, "o presioná ESC", Mover(new Vector2(450, 455)), UI.TextoSecundario * 0.8f);
+         }
+ 
+         private void CambiarVolumen(int cantidad)
+@@ -93,15 +157,25 @@ namespace La35Tunning.Escenas
+             spriteBatch.DrawString(fuente, texto, posicionTexto, Color.Cyan);
+         }
+ 
++        /// <summary>
++        /// ANTES: devolvía Vector2.Zero (todo quedaba pegado arriba a la izquierda).
++        /// AHORA: devuelve cuánto hay que correr el lienzo de 900x500 para que quede
++        /// en el centro de la pantalla.
++        /// </summary>
+         private Vector2 ObtenerDesplazamiento()
+         {
+-            return Vector2.Zero;
++            int ancho = _graphicsDevice.Viewport.Width;
++            int alto = _graphicsDevice.Viewport.Height;
++            return new Vector2(
++                Math.Max(0, (ancho - AnchoLienzo) / 2),
++                Math.Max(0, (alto - AltoLienzo) / 2));
+         }
+ 
+         private Rectangle Mover(Rectangle rectangulo)
+         {
+             Vector2 desplazamiento = ObtenerDesplazamiento();
+-            return new Rectangle(rectangulo.X + (int)desplazamiento.X, rectangulo.Y, rectangulo.Width, rectangulo.Height);
++            // ANTES solo se movía en X (faltaba sumar el desplazamiento en Y).
++            return new Rectangle(rectangulo.X + (int)desplazamiento.X, rectangulo.Y + (int)desplazamiento.Y, rectangulo.Width, rectangulo.Height);
+         }
+ 
+         private Vector2 Mover(Vector2 posicion)
+@@ -109,4 +183,4 @@ namespace La35Tunning.Escenas
+             return posicion + ObtenerDesplazamiento();
+         }
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/La35Tunning/Escenas/PantallaTaller.cs b/La35Tunning/Escenas/PantallaTaller.cs
+index 5745411..40456ea 100644
+--- a/La35Tunning/Escenas/PantallaTaller.cs
++++ b/La35Tunning/Escenas/PantallaTaller.cs
+@@ -2,6 +2,7 @@ using Microsoft.Xna.Framework;
+ using Microsoft.Xna.Framework.Content;
+ using Microsoft.Xna.Framework.Graphics;
+ using Microsoft.Xna.Framework.Input;
++using System;
+ using System.Collections.Generic;
+ using La35Tunning.Entidades;
+ using La35Tunning.Sistemas;
+@@ -26,17 +27,86 @@ namespace La35Tunning.Escenas
+         private float _escalaDibujoAuto = 1.0f;
+         private float _escalaLlantasTaller = 2.0f;
+ 
++        // ---- NUEVO ----
++        // Íconos de piezas (ya estaban en Content/, ahora se cargan en el Content.mgcb).
++        private Texture2D _iconoMotor;
++        private Texture2D _iconoTurbo;
++        private Texture2D _iconoNeumatico;
++
++        private int _anchoPantalla = 1920;     // se actualizan en Draw() con el tamaño real
++        private int _altoPantalla = 1080;
++        private Point _posicionMouse;
++        private bool _entradaInicializada;
++        private float _rotacionLlantaVitrina;  // la llanta elegida gira en la vitrina
++        private string _mensaje = "";
++        private bool _mensajeEsError;
++        private float _tiempoMensaje;
++        private Rectangle _rectVolver;
++
++        // Posición de la mancha oscura del piso dentro de FondoTaller.jpg (medida sobre la imagen).
++        private const float PisoU = 0.503f;
++        private const float PisoV = 0.80f;
++        private const float AnchoAutoSobreFondo = 0.32f;   // el auto ocupa el 32% del ancho de la imagen
++
++        /// <summary>NUEVO: true cuando tocan VOLVER (Game1 vuelve al menú).</summary>
++        public bool DebeVolver { get; private set; }
++
+         public PantallaTaller(ContentManager content, Jugador jugador)
+         {
+             _taller = new Taller(content);
+             _jugador = jugador;
+             _fondoTaller = content.Load<Texture2D>("FondoTaller");
++
++            _iconoMotor = CargarOpcional(content, "motor");
++            _iconoTurbo = CargarOpcional(content, "turbo");
++            _iconoNeumatico = CargarOpcional(content, "neumatico");
++        }
++
++        /// <summary>Si la imagen no está en el Content.mgcb devolvemos null en vez de romper el juego.</summary>
++        private static Texture2D CargarOpcional(ContentManager content, string nombre)
++        {
++            try
++            {
++                return content.Load<Texture2D>(nombre);
++            }
++            catch (Exception ex)
++            {
++                System.Diagnostics.Debug.WriteLine($"No se pudo cargar {nombre}: {ex.Message}");
++                return null;
++            }
++        }
++
++        /// <summary>NUEVO: evita que el clic que nos trajo desde el menú instale una pieza sin querer.</summary>
++        public void Reiniciar()
++        {
++            _entradaInicializada = false;
++            DebeVolver = false;
++            _tiempoMensaje = 0f;
+         }
+ 
+         public void Update(GameTime gameTime)
+         {
+             var teclado = Keyboard.GetState();
+             var mouse = Mouse.GetState();
++            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
++            _posicionMouse = mouse.Position;
++            _rotacionLlantaVitrina += dt * 1.6f;
++            if (_tiempoMensaje > 0f) _tiempoMensaje -= dt;
++
++            if (!_entradaInicializada)
++            {
++                _tecladoAnterior = teclado;
++                _mouseAnterior = mouse;
++                _entradaInicializada = true;
++                return;
++            }
++
++            bool hizoClic = mouse.LeftButton == ButtonState.Pressed && _mouseAnterior.LeftButton == ButtonState.Released;
++
++            if (hizoClic && _rectVolver.Contains(_posicionMouse))
++            {
++                DebeVolver = true;
++            }
+ 
+             if (_jugador.AutoActual != null)
+             {
+@@ -49,6 +119,10 @@ namespace La35Tunning.Escenas
+                     _modoLlantas = true;
+                 }
+ 
++                // NUEVO: también se puede cambiar de pestaña con el mouse.
++                if (hizoClic && RectPestanaPiezas().Contains(_posicionMouse)) _modoLlantas = false;
++                if (hizoClic && RectPestanaLlantas().Contains(_posicionMouse)) _modoLlantas = true;
++
+                 if (_modoLlantas)
+                 {
+                     if ((teclado.IsKeyDown(Keys.Right) || teclado.IsKeyDown(Keys.Down)) &&
+@@ -67,28 +141,18 @@ namespace La35Tunning.Escenas
+                     }
+                     else if (teclado.IsKeyDown(Keys.Enter) && _tecladoAnterior.IsKeyUp(Keys.Enter))
+                     {
+-                        _taller.CambiarLlantas(
+-                            _jugador.AutoActual,
+-                            _indiceLlantaSeleccionada,
+-                            _indiceLlantaSeleccionada);
++                        PonerLlantaSeleccionada();
+                     }
+ 
+-                    if (mouse.LeftButton == ButtonState.Pressed &&
+-                        _mouseAnterior.LeftButton == ButtonState.Released)
++                    if (hizoClic)
+                     {
+-                        Point posicionMouse = new Point(mouse.X, mouse.Y);
+-
+                         for (int i = 0; i < _taller.CatalogoLlantas.Count; i++)
+                         {
+-                            Rectangle botonLlanta = new Rectangle(50, 270 + (i * 25), 250, 22);
+-
+-                            if (botonLlanta.Contains(posicionMouse))
++                            // ANTES: new Rectangle(50, 270 + (i * 25), 250, 22) -> no coincidía con lo dibujado.
++                            if (RectLlanta(i).Contains(_posicionMouse))
+                             {
+                                 _indiceLlantaSeleccionada = i;
+-                                _taller.CambiarLlantas(
+-                                    _jugador.AutoActual,
+-                                    _indiceLlantaSeleccionada,
+-                                    _indiceLlantaSeleccionada);
++                                PonerLlantaSeleccionada();
+                             }
+                         }
+                     }
+@@ -105,22 +169,18 @@ namespace La35Tunning.Escenas
+                     }
+                     else if (teclado.IsKeyDown(Keys.Enter) && _tecladoAnterior.IsKeyUp(Keys.Enter))
+                     {
+-                        _taller.InstalarPieza(_jugador.AutoActual, _indiceSeleccionado, _jugador);
++                        InstalarPiezaSeleccionada();
+                     }
+ 
+-                    if (mouse.LeftButton == ButtonState.Pressed &&
+-                        _mouseAnterior.LeftButton == ButtonState.Released)
++                    if (hizoClic)
+                     {
+-                        Point posicionMouse = new Point(mouse.X, mouse.Y);
+-
+                         for (int i = 0; i < _taller.CatalogoPiezas.Count; i++)
+                         {
+-                            Rectangle botonPieza = new Rectangle(50, 270 + (i * 25), 350, 22);
+-
+-                            if (botonPieza.Contains(posicionMouse))
++                            // ANTES: new Rectangle(50, 270 + (i * 25), 350, 22)
++                            if (RectFilaPieza(i).Contains(_posicionMouse))
+                             {
+                                 _indiceSeleccionado = i;
+-                                _taller.InstalarPieza(_jugador.AutoActual, _indiceSeleccionado, _jugador);
++                                InstalarPiezaSeleccionada();
+                             }
+                         }
+                     }
+@@ -131,93 +191,405 @@ namespace La35Tunning.Escenas
+             _mouseAnterior = mouse;
+         }
+ 
++        /// <summary>NUEVO: instala y además avisa qué pasó (antes no había ningún mensaje).</summary>
++        private void InstalarPiezaSeleccionada()
++        {
++            Componente pieza = _taller.CatalogoPiezas[_indiceSeleccionado];
++
++            if (_jugador.AutoActual.TienePiezaComprada(pieza))
++            {
++                MostrarMensaje($"El {pieza.Nombre} ya está instalado.", true);
++                return;
++            }
++
++            bool instalada = _taller.InstalarPieza(_jugador.AutoActual, _indiceSeleccionado, _jugador);
++            if (instalada)
++                MostrarMensaje($"¡Instalaste {pieza.Nombre}!", false);
++            else
++                MostrarMensaje("No te alcanza la plata para esa pieza.", true);
++        }
++
++        private void PonerLlantaSeleccionada()
++        {
++            _taller.CambiarLlantas(_jugador.AutoActual, _indiceLlantaSeleccionada, _indiceLlantaSeleccionada);
++            MostrarMensaje($"Llantas {_taller.NombresLlantas[_indiceLlantaSeleccionada]} puestas.", false);
++        }
++
++        private void MostrarMensaje(string texto, bool esError)
++        {
++            _mensaje = texto;
++            _mensajeEsError = esError;
++            _tiempoMensaje = 2.5f;
++        }
++
++        // ==================================================================
++        // LAYOUT: un solo lugar donde se calculan las posiciones.
++        // Lo usan Update() (para los clics) y Draw() (para dibujar),
++        // así lo que se ve y lo que se toca SIEMPRE coinciden.
++        // ==================================================================
++
++        private Rectangle RectPanelIzquierdo()
++        {
++            int ancho = (int)MathHelper.Clamp(_anchoPantalla * 0.27f, 380f, 500f);
++            return new Rectangle(24, 24, ancho, _altoPantalla - 24 - 84);
++        }
++
++        private Rectangle RectPanelDerecho()
++        {
++            return new Rectangle(_anchoPantalla - 24 - 340, 24, 340, 380);
++        }
++
++        private Rectangle RectPestanaPiezas()
++        {
++            Rectangle panel = RectPanelIzquierdo();
++            int ancho = (panel.Width - 48 - 12) / 2;
++            return new Rectangle(panel.X + 24, panel.Y + 112, ancho, 44);
++        }
++
++        private Rectangle RectPestanaLlantas()
++        {
++            Rectangle piezas = RectPestanaPiezas();
++            return new Rectangle(piezas.Right + 12, piezas.Y, piezas.Width, piezas.Height);
++        }
++
++        private int InicioLista()
++        {
++            return RectPestanaPiezas().Bottom + 18;
++        }
++
++        private Rectangle RectFilaPieza(int indice)
++        {
++            Rectangle panel = RectPanelIzquierdo();
++            int disponible = panel.Bottom - 56 - InicioLista();
++            int alto = (int)MathHelper.Clamp(disponible / (float)_taller.CatalogoPiezas.Count - 4f, 28f, 44f);
++            return new Rectangle(panel.X + 16, InicioLista() + indice * (alto + 4), panel.Width - 32, alto);
++        }
++
++        private Rectangle RectLlanta(int indice)
++        {
++            Rectangle panel = RectPanelIzquierdo();
++            const int columnas = 2;
++            int filas = (_taller.CatalogoLlantas.Count + columnas - 1) / columnas;
++            int disponible = panel.Bottom - 56 - InicioLista();
++
++            int ancho = (panel.Width - 32 - 12) / columnas;
++            int alto = (int)MathHelper.Clamp(disponible / (float)filas - 12f, 110f, 190f);
++
++            int columna = indice % columnas;
++            int fila = indice / columnas;
++            return new Rectangle(panel.X + 16 + columna * (ancho + 12), InicioLista() + fila * (alto + 12), ancho, alto);
++        }
++
++        // ==================================================================
++        // DIBUJO
++        // ==================================================================
++
+         public void Draw(SpriteBatch spriteBatch, SpriteFont fuente)
+         {
+             if (_jugador == null) return;
+ 
++            _anchoPantalla = spriteBatch.GraphicsDevice.Viewport.Width;
++            _altoPantalla = spriteBatch.GraphicsDevice.Viewport.Height;
++
++            // Fondo sin deformar + oscurecido a la izquierda para que se lea el panel.
+             if (_fondoTaller != null)
+             {
+-                Rectangle pantallaCompleta = new Rectangle(
+-                    0,
+-                    0,
+-                    spriteBatch.GraphicsDevice.Viewport.Width,
+-                    spriteBatch.GraphicsDevice.Viewport.Height);
+-                spriteBatch.Draw(_fondoTaller, pantallaCompleta, Color.White);
++                UI.FondoCubriendo(spriteBatch, _fondoTaller, _anchoPantalla, _altoPantalla, Color.White);
+             }
++            UI.Vineta(spriteBatch, _anchoPantalla, _altoPantalla, 0.55f);
+ 
+             if (_jugador.AutoActual != null)
+             {
+-                if (_jugador.AutoActual.TexturaTaller != null)
++                DibujarAutoEnElPiso(spriteBatch);
++                DibujarPanelIzquierdo(spriteBatch);
++                DibujarFichaTecnica(spriteBatch);
++            }
++            else
++            {
++                DibujarSinAuto(spriteBatch);
++            }
++
++            DibujarBarraInferior(spriteBatch);
++
++            if (_tiempoMensaje > 0f)
++            {
++                DibujarMensaje(spriteBatch);
++            }
++        }
++
++        /// <summary>
++        /// ANTES: el auto se dibujaba en (700, 700) a escala 1, o sea con el tamaño de
++        /// su imagen original (¡el Gol mide 1536 px!) y quedaba fuera de pantalla.
++        /// AHORA: se apoya sobre la mancha oscura del piso del fondo, con un tamaño
++        /// proporcional a la imagen de fondo, en cualquier resolución.
++        /// </summary>
++        private void DibujarAutoEnElPiso(SpriteBatch spriteBatch)
++        {
++            Auto auto = _jugador.AutoActual;
++
++            float escalaFondo = UI.EscalaDelFondo(_fondoTaller, _anchoPantalla, _altoPantalla);
++            Vector2 piso = UI.PuntoDelFondo(_fondoTaller, _anchoPantalla, _altoPantalla, PisoU, PisoV);
++            float anchoAuto = _fondoTaller.Width * escalaFondo * AnchoAutoSobreFondo;
++
++            // Que no quede tapado por los paneles de los costados.
++            float izquierdaLibre = RectPanelIzquierdo().Right + 30;
++            float derechaLibre = RectPanelDerecho().X - 30;
++            anchoAuto = Math.Min(anchoAuto, derechaLibre - izquierdaLibre);
++            piso.X = MathHelper.Clamp(piso.X, izquierdaLibre + anchoAuto / 2f, derechaLibre - anchoAuto / 2f);
++
++            // En pantallas 16:9 el fondo (que es 4:3) se recorta arriba y abajo y el piso
++            // queda muy abajo: dejamos lugar para el nombre del auto y la barra inferior.
++            piso.Y = Math.Min(piso.Y, _altoPantalla - 64 - 90);
++
++            // Reflector desde arriba
++            UI.Resplandor(spriteBatch, new Vector2(piso.X, piso.Y - anchoAuto * 0.2f), anchoAuto * 0.8f, anchoAuto * 0.45f, Color.White * 0.08f);
++
++            auto.DibujarSobrePiso(spriteBatch, piso, anchoAuto, Color.White, true);
++
++            // Cartel con el nombre del auto debajo
++            UI.TextoCentrado(spriteBatch, UI.Titulo, auto.Modelo.ToUpper(), new Vector2(piso.X, piso.Y + 46), UI.TextoClaro, 0.8f);
++        }
++
++        private void DibujarPanelIzquierdo(SpriteBatch spriteBatch)
++        {
++            Rectangle panel = RectPanelIzquierdo();
++            UI.Panel(spriteBatch, panel, 0.9f, UI.Acento);
++
++            UI.Texto(spriteBatch, UI.Titulo, "TALLER", new Vector2(panel.X + 24, panel.Y + 18), UI.TextoClaro);
++            UI.Texto(spriteBatch, UI.Fuente, "Mejorá tu auto para ganar más picadas", new Vector2(panel.X + 26, panel.Y + 72), UI.TextoSecundario);
++
++            DibujarPestana(spriteBatch, RectPestanaPiezas(), "PIEZAS  [P]", !_modoLlantas);
++            DibujarPestana(spriteBatch, RectPestanaLlantas(), "LLANTAS  [L]", _modoLlantas);
++
++            if (_modoLlantas == false)
++            {
++                for (int i = 0; i < _taller.CatalogoPiezas.Count; i++)
+                 {
+-                    spriteBatch.Draw(
+-                        _jugador.AutoActual.TexturaTaller,
+-                        _posicionDibujoAuto,
+-                        null,
+-                        Color.White,
+-                        0f,
+-                        Vector2.Zero,
+-                        _escalaDibujoAuto,
+-                        Microsoft.Xna.Framework.Graphics.SpriteEffects.None,
+-                        0f);
++                    DibujarFilaPieza(spriteBatch, i);
+                 }
+-                else
++            }
++            else
++            {
++                for (int i = 0; i < _taller.CatalogoLlantas.Count; i++)
+                 {
+-                    _jugador.AutoActual.Draw(
+-                        spriteBatch,
+-                        _posicionDibujoAuto,
+-                        _escalaDibujoAuto,
+-                        _escalaLlantasTaller);
++                    DibujarTarjetaLlanta(spriteBatch, i);
+                 }
++            }
++
++            string ayuda = _modoLlantas ? "Las llantas son gratis: probalas todas" : "Clic o ENTER para comprar e instalar";
++            UI.TextoCentrado(spriteBatch, UI.Fuente, ayuda, new Vector2(panel.Center.X, panel.Bottom - 30), UI.TextoSecundario);
++        }
+ 
+-                spriteBatch.DrawString(fuente, $"Auto: {_jugador.AutoActual.Modelo}", new Vector2(50, 50), Color.White);
+-                spriteBatch.DrawString(fuente, $"Dinero: ${_jugador.Dinero}", new Vector2(50, 80), Color.White);
++        private void DibujarPestana(SpriteBatch spriteBatch, Rectangle rect, string texto, bool activa)
++        {
++            bool encima = rect.Contains(_posicionMouse);
++            if (activa)
++            {
++                UI.Rect(spriteBatch, rect, UI.Acento);
++                UI.TextoCentrado(spriteBatch, UI.Negrita, texto, new Vector2(rect.Center.X, rect.Center.Y + 1), new Color(30, 24, 6), 1f, false);
+             }
+             else
+             {
+-                spriteBatch.DrawString(fuente, "No hay ningún auto en el taller.", new Vector2(50, 50), Color.Red);
++                UI.Boton(spriteBatch, rect, texto, encima);
+             }
++        }
+ 
+-            Vector2 posicionTexto = new Vector2(50, 200);
+-            spriteBatch.DrawString(fuente, "P = PIEZAS    L = LLANTAS", posicionTexto, Color.Cyan);
+-            posicionTexto.Y += 40;
++        private void DibujarFilaPieza(SpriteBatch spriteBatch, int indice)
++        {
++            Componente pieza = _taller.CatalogoPiezas[indice];
++            Rectangle fila = RectFilaPieza(indice);
++            Auto auto = _jugador.AutoActual;
+ 
+-            if (_modoLlantas == false)
++            bool seleccionada = indice == _indiceSeleccionado;
++            bool encima = fila.Contains(_posicionMouse);
++            bool instalada = auto.TienePiezaComprada(pieza);
++            bool alcanza = _jugador.Dinero >= pieza.Costo;
++
++            Color fondo = seleccionada ? new Color(60, 52, 24) : (encima ? UI.ColorPanelClaro : Color.Black * 0.25f);
++            UI.Rect(spriteBatch, fila, fondo);
++            if (seleccionada)
+             {
+-                spriteBatch.DrawString(fuente, "--- PIEZAS DISPONIBLES EN TALLER ---", posicionTexto, Color.Yellow);
+-                posicionTexto.Y += 30;
++                UI.Rect(spriteBatch, new Rectangle(fila.X, fila.Y, 4, fila.Height), UI.Acento);
++            }
+ 
+-                for (int i = 0; i < _taller.CatalogoPiezas.Count; i++)
+-                {
+-                    Componente pieza = _taller.CatalogoPiezas[i];
+-                    string textoPieza = $"{i + 1}. {pieza.Nombre} - ${pieza.Costo}";
+-                    Color colorTexto = (i == _indiceSeleccionado) ? Color.Yellow : Color.White;
+-                    spriteBatch.DrawString(fuente, textoPieza, posicionTexto, colorTexto);
+-                    posicionTexto.Y += 25;
+-                }
++            // Ícono
++            int tamanoIcono = fila.Height - 8;
++            Rectangle icono = new Rectangle(fila.X + 12, fila.Y + 4, tamanoIcono, tamanoIcono);
++            DibujarIconoPieza(spriteBatch, pieza, icono);
+ 
+-                posicionTexto.Y += 15;
+-                spriteBatch.DrawString(fuente, "Flechas ARRIBA/ABAJO para elegir, ENTER para instalar", posicionTexto, Color.Gray);
++            float centroY = fila.Center.Y;
++            string derecha;
++            Color colorDerecha;
++            if (instalada)
++            {
++                derecha = "INSTALADA";
++                colorDerecha = UI.Verde;
+             }
+             else
+             {
+-                spriteBatch.DrawString(fuente, "--- LLANTAS DISPONIBLES ---", posicionTexto, Color.Yellow);
+-                posicionTexto.Y += 30;
++                derecha = UI.Dinero(pieza.Costo);
++                colorDerecha = alcanza ? UI.Acento : UI.Rojo;
++            }
+ 
+-                for (int i = 0; i < _taller.CatalogoLlantas.Count; i++)
+-                {
+-                    string nombreLlanta = _taller.NombresLlantas[i];
++            Vector2 medidaDerecha = UI.Negrita.MeasureString(derecha);
++            UI.TextoDerecha(spriteBatch, UI.Negrita, derecha, new Vector2(fila.Right - 12, centroY - medidaDerecha.Y / 2f), colorDerecha);
+ 
+-                    Color colorTexto = (i == _indiceLlantaSeleccionada) ? Color.Yellow : Color.White;
+-                    spriteBatch.DrawString(fuente, nombreLlanta, posicionTexto, colorTexto);
+-                    posicionTexto.Y += 25;
+-                }
++            // Nombre: si es muy largo para el espacio que queda, se achica un poco para no pisar el precio.
++            Vector2 medidaNombre = UI.Fuente.MeasureString(pieza.Nombre);
++            float espacioNombre = fila.Right - 24 - medidaDerecha.X - (icono.Right + 12);
++            float escalaNombre = Math.Min(1f, espacioNombre / medidaNombre.X);
++            Color colorNombre = instalada ? UI.TextoSecundario : UI.TextoClaro;
++            UI.Texto(spriteBatch, UI.Fuente, pieza.Nombre,
++                new Vector2(icono.Right + 12, centroY - medidaNombre.Y * escalaNombre / 2f), colorNombre, escalaNombre);
++        }
++
++        private void DibujarIconoPieza(SpriteBatch spriteBatch, Componente pieza, Rectangle destino)
++        {
++            Texture2D icono = null;
++            Color color = UI.TextoSecundario;
++            string letra = "?";
++
++            if (pieza is Motor) { icono = _iconoMotor; color = UI.Rojo; letra = "M"; }
++            else if (pieza is Turbo) { icono = _iconoTurbo; color = UI.Azul; letra = "T"; }
++            else if (pieza is Neumatico) { icono = _iconoNeumatico; color = new Color(120, 120, 130); letra = "N"; }
++            else if (pieza is Transmision) { color = new Color(160, 110, 220); letra = "C"; }   // C de caja
++            else if (pieza is Intercooler) { color = new Color(80, 200, 220); letra = "I"; }
++
++            UI.Rect(spriteBatch, destino, Color.Black * 0.35f);
+ 
+-                Texture2D llantaSeleccionada = _taller.CatalogoLlantas[_indiceLlantaSeleccionada];
+-                spriteBatch.Draw(llantaSeleccionada, new Rectangle(50, 450, 150, 150), Color.White);
++            if (icono != null)
++            {
++                Rectangle limites = UI.LimitesOpacos(icono);
++                float escala = Math.Min(destino.Width / (float)limites.Width, destino.Height / (float)limites.Height);
++                int ancho = (int)(limites.Width * escala);
++                int alto = (int)(limites.Height * escala);
++                Rectangle ajustado = new Rectangle(destino.Center.X - ancho / 2, destino.Center.Y - alto / 2, ancho, alto);
++                spriteBatch.Draw(icono, ajustado, limites, Color.White);
++            }
++            else
++            {
++                UI.Rect(spriteBatch, new Rectangle(destino.X + 3, destino.Y + 3, destino.Width - 6, destino.Height - 6), color * 0.85f);
++                UI.TextoCentrado(spriteBatch, UI.Negrita, letra, new Vector2(destino.Center.X, destino.Center.Y + 1), Color.White);
++            }
++        }
++
++        private void DibujarTarjetaLlanta(SpriteBatch spriteBatch, int indice)
++        {
++            Rectangle tarjeta = RectLlanta(indice);
++            Texture2D llanta = _taller.CatalogoLlantas[indice];
++
++            bool seleccionada = indice == _indiceLlantaSeleccionada;
++            bool encima = tarjeta.Contains(_posicionMouse);
++            bool puesta = _jugador.AutoActual.LlantaDelantera == llanta;
++
++            UI.Rect(spriteBatch, tarjeta, seleccionada ? new Color(60, 52, 24) : (encima ? UI.ColorPanelClaro : Color.Black * 0.3f));
++            UI.Borde(spriteBatch, tarjeta, seleccionada ? 2 : 1, seleccionada ? UI.Acento : Color.Black * 0.5f);
++
++            // Llanta: la seleccionada gira despacito como en una vidriera.
++            int diametro = Math.Min(tarjeta.Width - 30, tarjeta.Height - 46);
++            Vector2 centro = new Vector2(tarjeta.Center.X, tarjeta.Y + 10 + diametro / 2f);
++            Rectangle limites = UI.LimitesOpacos(llanta);
++            Vector2 escala = new Vector2(diametro / (float)limites.Width, diametro / (float)limites.Height);
++            Vector2 origen = new Vector2(limites.Width / 2f, limites.Height / 2f);
++            float rotacion = seleccionada ? _rotacionLlantaVitrina : 0f;
++
++            UI.Resplandor(spriteBatch, centro + new Vector2(0, diametro * 0.45f), diametro * 0.5f, 10f, Color.Black * 0.6f);
++            spriteBatch.Draw(llanta, centro, limites, Color.White, rotacion, origen, escala, SpriteEffects.None, 0f);
++
++            UI.TextoCentrado(spriteBatch, UI.Negrita, _taller.NombresLlantas[indice],
++                new Vector2(tarjeta.Center.X, tarjeta.Bottom - 20), seleccionada ? UI.Acento : UI.TextoClaro, 0.85f);
++
++            if (puesta)
++            {
++                Rectangle etiqueta = new Rectangle(tarjeta.Right - 70, tarjeta.Y + 6, 64, 22);
++                UI.Rect(spriteBatch, etiqueta, UI.Verde);
++                UI.TextoCentrado(spriteBatch, UI.Fuente, "PUESTA", new Vector2(etiqueta.Center.X, etiqueta.Center.Y), new Color(10, 40, 20), 0.75f, false);
++            }
++        }
++
++        private void DibujarFichaTecnica(SpriteBatch spriteBatch)
++        {
++            Auto auto = _jugador.AutoActual;
++            Rectangle panel = RectPanelDerecho();
++            UI.Panel(spriteBatch, panel, 0.9f);
++
++            int x = panel.X + 20;
++            int y = panel.Y + 18;
+ 
+-                posicionTexto.Y += 15;
+-                spriteBatch.DrawString(fuente, "Flechas para moverse, ENTER para instalar", posicionTexto, Color.Gray);
++            UI.Texto(spriteBatch, UI.Negrita, "FICHA TÉCNICA", new Vector2(x, y), UI.Acento);
++            y += 34;
++            UI.Chip(spriteBatch, new Vector2(x, y), "DINERO", UI.Dinero(_jugador.Dinero), UI.Verde);
++            y += 50;
++
++            UI.Texto(spriteBatch, UI.Fuente, "Potencia total", new Vector2(x, y), UI.TextoSecundario);
++            UI.TextoDerecha(spriteBatch, UI.Negrita, $"x{auto.MultiplicadorMotorTotal:0.00}", new Vector2(panel.Right - 20, y - 2), UI.Acento);
++            y += 30;
++
++            UI.Texto(spriteBatch, UI.Fuente, "Velocidad máx.", new Vector2(x, y), UI.TextoSecundario);
++            y += 22;
++            UI.Barra(spriteBatch, new Rectangle(x, y, panel.Width - 40, 10), auto.VelocidadMaximaReal / 30f, UI.Azul);
++            y += 22;
++
++            UI.Texto(spriteBatch, UI.Fuente, "Aceleración", new Vector2(x, y), UI.TextoSecundario);
++            y += 22;
++            UI.Barra(spriteBatch, new Rectangle(x, y, panel.Width - 40, 10), auto.AceleracionReal / 0.6f, UI.Verde);
++            y += 26;
++
++            UI.Rect(spriteBatch, new Rectangle(x, y, panel.Width - 40, 1), UI.BordePanel);
++            y += 12;
++
++            UI.Texto(spriteBatch, UI.Negrita, "INSTALADO", new Vector2(x, y), UI.TextoClaro, 0.85f);
++            y += 28;
++
++            foreach (Componente componente in auto.ObtenerComponentesInstalados())
++            {
++                bool esMejora = componente.MultiplicadorRendimiento > 1f;
++                UI.CirculoLleno(spriteBatch, new Vector2(x + 5, y + 10), 4, esMejora ? UI.Verde : UI.TextoSecundario * 0.6f);
++                UI.Texto(spriteBatch, UI.Fuente, componente.Nombre, new Vector2(x + 18, y), esMejora ? UI.TextoClaro : UI.TextoSecundario, 0.9f, false);
++                y += 22;
+             }
+         }
++
++        private void DibujarSinAuto(SpriteBatch spriteBatch)
++        {
++            Rectangle caja = new Rectangle(_anchoPantalla / 2 - 320, _altoPantalla / 2 - 110, 640, 200);
++            UI.Panel(spriteBatch, caja, 0.95f, UI.Rojo);
++            UI.TextoCentrado(spriteBatch, UI.Titulo, "EL TALLER ESTÁ VACÍO", new Vector2(caja.Center.X, caja.Y + 60), UI.TextoClaro, 0.8f);
++            UI.TextoCentrado(spriteBatch, UI.Fuente, "No hay ningún auto en el taller.", new Vector2(caja.Center.X, caja.Y + 112), UI.TextoSecundario);
++            UI.TextoCentrado(spriteBatch, UI.Fuente, "Comprá y equipá uno en el CONCESIONARIO.", new Vector2(caja.Center.X, caja.Y + 140), UI.Acento);
++        }
++
++        private void DibujarBarraInferior(SpriteBatch spriteBatch)
++        {
++            Rectangle barra = new Rectangle(0, _altoPantalla - 64, _anchoPantalla, 64);
++            UI.Rect(spriteBatch, barra, Color.Black * 0.7f);
++            UI.Rect(spriteBatch, new Rectangle(0, barra.Y, _anchoPantalla, 1), UI.BordePanel);
++
++            _rectVolver = new Rectangle(24, barra.Y + 10, 150, 44);
++            UI.Boton(spriteBatch, _rectVolver, "< VOLVER", _rectVolver.Contains(_posicionMouse));
++
++            float x = _rectVolver.Right + 30;
++            float y = barra.Y + 15;
++            x += UI.Tecla(spriteBatch, new Vector2(x, y), "P", "Piezas");
++            x += UI.Tecla(spriteBatch, new Vector2(x, y), "L", "Llantas");
++            x += UI.Tecla(spriteBatch, new Vector2(x, y), "^ v", "Elegir");
++            x += UI.Tecla(spriteBatch, new Vector2(x, y), "ENTER", "Instalar");
++            UI.Tecla(spriteBatch, new Vector2(x, y), "ESC", "Volver al menú");
++        }
++
++        private void DibujarMensaje(SpriteBatch spriteBatch)
++        {
++            float opacidad = MathHelper.Clamp(_tiempoMensaje / 0.4f, 0f, 1f);
++            Color color = _mensajeEsError ? UI.Rojo : UI.Verde;
++
++            Vector2 medida = UI.Negrita.MeasureString(_mensaje);
++            float centroX = (RectPanelIzquierdo().Right + RectPanelDerecho().X) / 2f;
++            Rectangle caja = new Rectangle((int)(centroX - medida.X / 2f - 24), 40, (int)medida.X + 48, 48);
++
++            UI.Rect(spriteBatch, caja, Color.Black * 0.8f * opacidad);
++            UI.Rect(spriteBatch, new Rectangle(caja.X, caja.Y, 4, caja.Height), color * opacidad);
++            UI.Borde(spriteBatch, caja, 1, color * 0.6f * opacidad);
++            UI.TextoCentrado(spriteBatch, UI.Negrita, _mensaje, new Vector2(caja.Center.X, caja.Center.Y + 1), UI.TextoClaro * opacidad);
++        }
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/La35Tunning/Game1.cs b/La35Tunning/Game1.cs
+index 5332882..b23cddf 100644
+--- a/La35Tunning/Game1.cs
++++ b/La35Tunning/Game1.cs
+@@ -73,6 +73,12 @@ namespace La35Tunning
+                 System.Diagnostics.Debug.WriteLine("Error cargando fuente: " + ex.Message);
+             }
+ 
++            // NUEVO: fuentes en negrita para títulos y botones. Si alguna no carga,
++            // UI.Inicializar usa la principal en su lugar y el juego sigue andando.
++            SpriteFont fuenteNegrita = CargarFuenteOpcional("FuenteNegrita");
++            SpriteFont fuenteTitulo = CargarFuenteOpcional("FuenteTitulo");
++            UI.Inicializar(GraphicsDevice, _fuente, fuenteNegrita, fuenteTitulo);
++
+             try
+             {
+                 CrearPantallaMenuYMusica();
+@@ -84,6 +90,19 @@ namespace La35Tunning
+             }
+         }
+ 
++        private SpriteFont CargarFuenteOpcional(string nombre)
++        {
++            try
++            {
++                return Content.Load<SpriteFont>(nombre);
++            }
++            catch (Exception ex)
++            {
++                System.Diagnostics.Debug.WriteLine($"No se pudo cargar {nombre}: {ex.Message}");
++                return null;
++            }
++        }
++
+         protected override void Update(GameTime gameTime)
+         {
+             ActualizarTiempoDeErrores(gameTime);
+@@ -128,6 +147,7 @@ namespace La35Tunning
+ 
+                 case EstadoJuego.Configuracion:
+                     _spriteBatch.Begin();
++                    _menuPrincipal?.Draw(_spriteBatch, _fuente, GraphicsDevice);   // NUEVO: el menú queda de fondo
+                     DibujarConfiguracion();
+                     _spriteBatch.End();
+                     break;
+@@ -139,6 +159,7 @@ namespace La35Tunning
+         private void CrearPantallaMenuYMusica()
+         {
+             _menuPrincipal = new MenuPrincipal(Content, GraphicsDevice);
++            _menuPrincipal.JugadorActual = _jugador;
+             _musicaMenu = Content.Load<Song>("Sonidos/Fiat 600 - Tussiwarriors");
+             MediaPlayer.IsRepeating = true;
+             MediaPlayer.Volume = 0f;
+@@ -168,8 +189,8 @@ namespace La35Tunning
+                     Content.Load<Texture2D>("semaforo4"),
+                     Content.Load<Texture2D>("semaforo5"),
+                     Content.Load<Texture2D>("semaforoFallida")),
+-                200f,
+-                400f,
++                590f,   // carril del jugador (línea del piso, adelante)
++                440f,   // carril del rival (línea del piso, atrás)
+                 _texturaPixel,
+                 Content.Load<Texture2D>("Velocimetro"),
+                 Content.Load<Texture2D>("Aguja_Velocimetro"),
+@@ -219,6 +240,12 @@ namespace La35Tunning
+ 
+             _menuPrincipal.Update(gameTime);
+ 
++            if (_menuPrincipal.QuiereSalir)
++            {
++                Exit();
++                return;
++            }
++
+             if (_menuPrincipal.SiguienteEstado.HasValue)
+             {
+                 CambiarEstado(_menuPrincipal.SiguienteEstado.Value);
+@@ -236,7 +263,7 @@ namespace La35Tunning
+                 System.Diagnostics.Debug.WriteLine("Error en Update de Taller: " + ex.Message);
+             }
+ 
+-            if (Keyboard.GetState().IsKeyDown(Keys.Escape))
++            if (Keyboard.GetState().IsKeyDown(Keys.Escape) || (_pantallaTaller != null && _pantallaTaller.DebeVolver))
+             {
+                 CambiarEstado(EstadoJuego.MenuPrincipal);
+             }
+@@ -246,7 +273,7 @@ namespace La35Tunning
+         {
+             _pantallaConcesionario?.Update(gameTime);
+ 
+-            if (Keyboard.GetState().IsKeyDown(Keys.Escape))
++            if (Keyboard.GetState().IsKeyDown(Keys.Escape) || (_pantallaConcesionario != null && _pantallaConcesionario.DebeVolver))
+             {
+                 CambiarEstado(EstadoJuego.MenuPrincipal);
+             }
+@@ -281,8 +308,15 @@ namespace La35Tunning
+ 
+             if (_tiempoMensajeError > 0f)
+             {
+-                _spriteBatch.Draw(_texturaPixel, new Rectangle(0, 0, GraphicsDevice.Viewport.Width, 100), Color.Black * 0.7f);
+-                _spriteBatch.DrawString(_fuente, _mensajeError, new Vector2(50, 20), Color.Red);
++                // NUEVO: cartel centrado con estilo (antes: franja negra con texto rojo arriba a la izquierda).
++                float opacidad = MathHelper.Clamp(_tiempoMensajeError / 0.4f, 0f, 1f);
++                Vector2 medida = UI.Negrita.MeasureString(_mensajeError);
++                int ancho = (int)medida.X + 60;
++                Rectangle caja = new Rectangle(GraphicsDevice.Viewport.Width / 2 - ancho / 2, 110, ancho, 56);
++                UI.Rect(_spriteBatch, caja, Color.Black * 0.85f * opacidad);
++                UI.Rect(_spriteBatch, new Rectangle(caja.X, caja.Y, 5, caja.Height), UI.Rojo * opacidad);
++                UI.Borde(_spriteBatch, caja, 1, UI.Rojo * 0.7f * opacidad);
++                UI.TextoCentrado(_spriteBatch, UI.Negrita, _mensajeError, new Vector2(caja.Center.X, caja.Center.Y + 1), UI.TextoClaro * opacidad);
+             }
+         }
+ 
+@@ -316,8 +350,18 @@ namespace La35Tunning
+ 
+             if (_camara != null && _jugador.AutoActual != null)
+             {
+-                _camara.Update(_jugador.AutoActual.Posicion);
++                // NUEVO: el zoom depende del alto de la pantalla, así la pista se ve igual
++                // en cualquier monitor (antes era 0.5 fijo y los autos quedaban chiquitos).
++                _camara.Zoom = GraphicsDevice.Viewport.Height / PantallaCarrera.AltoVisibleMundo;
++                float anchoVisibleMundo = GraphicsDevice.Viewport.Width / _camara.Zoom;
++                _camara.Update(_pantallaCarrera.ObtenerCentroCamara(anchoVisibleMundo));
++
++                // 1) Fondo (cielo y edificios con parallax) en coordenadas de pantalla
++                _spriteBatch.Begin();
++                _pantallaCarrera.DibujarFondo(_spriteBatch, _camara);
++                _spriteBatch.End();
+ 
++                // 2) Pista y autos con la cámara
+                 _spriteBatch.Begin(transformMatrix: _camara.Transform);
+                 _pantallaCarrera.Draw(_spriteBatch);
+                 _spriteBatch.End();
+@@ -334,7 +378,8 @@ namespace La35Tunning
+             int alto = GraphicsDevice.Viewport.Height;
+             Vector2 posicion = new Vector2((ancho - tamanoTexto.X) / 2, (alto - tamanoTexto.Y) / 2);
+ 
+-            _texturaPixel.SetData(new[] { Color.Black });
++            // ANTES: _texturaPixel.SetData(new[] { Color.Black }); -> pintaba de negro la textura
++            // que también usan otras pantallas. No hace falta: Color.Black * 0.5f ya la tiñe.
+             _spriteBatch.Begin();
+             _spriteBatch.Draw(_texturaPixel, new Rectangle(0, 0, ancho, alto), Color.Black * 0.5f);
+             _spriteBatch.DrawString(_fuente, mensajeError, posicion, Color.Red);
+@@ -369,9 +414,21 @@ namespace La35Tunning
+                 if (_pantallaCarrera != null)
+                 {
+                     _pantallaCarrera.CambiarAutoJugador(_jugador.AutoActual);
++                    _pantallaCarrera.IniciarNuevaCarrera();   // NUEVO: siempre arrancar con el semáforo desde cero
+                 }
+             }
+ 
++            // NUEVO: al entrar a una pantalla se "olvida" el clic que nos trajo hasta acá.
++            if (nuevoEstado == EstadoJuego.MenuPrincipal)
++            {
++                _menuPrincipal?.Reiniciar();
++            }
++
++            if (nuevoEstado == EstadoJuego.Taller)
++            {
++                _pantallaTaller?.Reiniciar();
++            }
++
+             if (nuevoEstado == EstadoJuego.Configuracion)
+             {
+                 _pantallaConfiguracion?.Reiniciar();
+diff --git a/La35Tunning/La35Tunning/Factories/AutoFactory.cs b/La35Tunning/La35Tunning/Factories/AutoFactory.cs
+index 2e19048..9f7d613 100644
+--- a/La35Tunning/La35Tunning/Factories/AutoFactory.cs
++++ b/La35Tunning/La35Tunning/Factories/AutoFactory.cs
+@@ -4,12 +4,19 @@ using La35Tunning.Entidades;
+ 
+ namespace La35Tunning.Factories
+ {
++    /// <summary>
++    /// Los últimos 4 números de cada auto son la posición de las llantas, medidas
++    /// sobre la imagen tal como se ve en el juego (dada vuelta, mirando a la derecha):
++    ///   llanta izquierda X, llanta derecha X, centro de llantas Y, diámetro de llanta.
++    /// X y diámetro son fracción del ANCHO de la imagen; Y es fracción del ALTO.
++    /// Se midieron sobre los pasaruedas de cada sprite (ver CAMBIOS.md).
++    /// </summary>
+     public static class AutoFactory
+     {
+         public static Auto CrearGol(ContentManager content, Texture2D texturaLlantas)
+         {
+             Texture2D texturaGol = content.Load<Texture2D>("gol");
+-            Auto auto = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, texturaGol, null, 0.13f, 0.77f, 0.7f);
++            Auto auto = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, texturaGol, null, 0.133f, 0.765f, 0.705f, 0.148f);
+             auto.InstalarLlantas(texturaLlantas, texturaLlantas);
+             return auto;
+         }
+@@ -17,7 +24,7 @@ namespace La35Tunning.Factories
+         public static Auto CrearUno(ContentManager content, Texture2D texturaLlantas)
+         {
+             Texture2D texturaUno = content.Load<Texture2D>("Uno");
+-            Auto auto = new Auto("Fiat Uno", 7.5f, 0.18f, 3800000, texturaUno, null, 0.2f, 0.78f, 0.73f);
++            Auto auto = new Auto("Fiat Uno", 7.5f, 0.18f, 3800000, texturaUno, null, 0.180f, 0.778f, 0.746f, 0.143f);
+             auto.InstalarLlantas(texturaLlantas, texturaLlantas);
+             return auto;
+         }
+@@ -25,7 +32,7 @@ namespace La35Tunning.Factories
+         public static Auto CrearClio(ContentManager content, Texture2D texturaLlantas)
+         {
+             Texture2D texturaClio = content.Load<Texture2D>("clio");
+-            Auto auto = new Auto("Renault Clio", 8.5f, 0.16f, 5200000, texturaClio, null, 0.17f, 0.79f, 0.84f);
++            Auto auto = new Auto("Renault Clio", 8.5f, 0.16f, 5200000, texturaClio, null, 0.164f, 0.785f, 0.872f, 0.158f);
+             auto.InstalarLlantas(texturaLlantas, texturaLlantas);
+             return auto;
+         }
+@@ -33,7 +40,7 @@ namespace La35Tunning.Factories
+         public static Auto CrearCorsa(ContentManager content, Texture2D texturaLlantas)
+         {
+             Texture2D texturaCorsa = content.Load<Texture2D>("corsa");
+-            Auto auto = new Auto("Chevrolet Corsa", 8f, 0.15f, 4200000, texturaCorsa, null, 0.19f, 0.77f, 0.82f);
++            Auto auto = new Auto("Chevrolet Corsa", 8f, 0.15f, 4200000, texturaCorsa, null, 0.184f, 0.775f, 0.851f, 0.148f);
+             auto.InstalarLlantas(texturaLlantas, texturaLlantas);
+             return auto;
+         }
+diff --git a/La35Tunning/Sistemas/Camara2D.cs b/La35Tunning/Sistemas/Camara2D.cs
+index 2e65fc8..f82d4ae 100644
+--- a/La35Tunning/Sistemas/Camara2D.cs
++++ b/La35Tunning/Sistemas/Camara2D.cs
+@@ -9,6 +9,9 @@ namespace La35Tunning.Sistemas
+         public float Zoom { get; set; } = 0.5f;
+         private GraphicsDevice _graphicsDevice;
+ 
++        /// <summary>NUEVO: punto del mundo que está en el centro de la pantalla.</summary>
++        public Vector2 Centro { get; private set; }
++
+         public Camera2D(GraphicsDevice graphicsDevice)
+         {
+             _graphicsDevice = graphicsDevice;
+@@ -17,10 +20,17 @@ namespace La35Tunning.Sistemas
+         public void Update(Vector2 targetPosition)
+         {
+             var viewport = _graphicsDevice.Viewport;
++            Centro = targetPosition;
+ 
+             Transform = Matrix.CreateTranslation(new Vector3(-targetPosition.X, -targetPosition.Y, 0)) *
+                         Matrix.CreateScale(new Vector3(Zoom, Zoom, 1)) *
+                         Matrix.CreateTranslation(new Vector3(viewport.Width / 2f, viewport.Height / 2f, 0));
+         }
++
++        /// <summary>NUEVO: convierte un punto del mundo a píxeles de pantalla (útil para el fondo con parallax).</summary>
++        public Vector2 MundoAPantalla(Vector2 puntoMundo)
++        {
++            return Vector2.Transform(puntoMundo, Transform);
++        }
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/La35Tunning/Sistemas/UI.cs b/La35Tunning/Sistemas/UI.cs
+new file mode 100644
+index 0000000..4b834b4
+--- /dev/null
++++ b/La35Tunning/Sistemas/UI.cs
+@@ -0,0 +1,451 @@
++using System;
++using System.Collections.Generic;
++using System.Globalization;
++using Microsoft.Xna.Framework;
++using Microsoft.Xna.Framework.Graphics;
++
++namespace La35Tunning.Sistemas
++{
++    /// <summary>
++    /// Caja de herramientas de dibujo compartida por TODAS las pantallas.
++    ///
++    /// La idea es no repetir en cada pantalla el mismo código para dibujar un
++    /// rectángulo, un borde, un botón o un texto centrado. Si mañana queremos
++    /// cambiar cómo se ven los botones, se cambia acá y se actualiza todo el juego.
++    ///
++    /// Es una clase "static": no se crea con new, se usa directo (UI.Boton(...)).
++    /// Se inicializa una sola vez desde Game1.LoadContent().
++    /// </summary>
++    public static class UI
++    {
++        // ------------------------------------------------------------------
++        // PALETA DE COLORES (un solo lugar para todos los colores del juego)
++        // ------------------------------------------------------------------
++        public static readonly Color FondoOscuro = new Color(13, 15, 21);
++        public static readonly Color ColorPanel = new Color(22, 25, 33);
++        public static readonly Color ColorPanelClaro = new Color(38, 43, 56);
++        public static readonly Color BordePanel = new Color(64, 70, 88);
++        public static readonly Color Acento = new Color(255, 194, 26);       // amarillo "picada"
++        public static readonly Color Rojo = new Color(232, 65, 72);
++        public static readonly Color Verde = new Color(52, 211, 120);
++        public static readonly Color Azul = new Color(64, 156, 230);
++        public static readonly Color TextoClaro = new Color(238, 241, 246);
++        public static readonly Color TextoSecundario = new Color(150, 158, 176);
++
++        // ------------------------------------------------------------------
++        // TEXTURAS GENERADAS POR CÓDIGO (no hace falta ningún .png)
++        // ------------------------------------------------------------------
++        public static Texture2D Pixel { get; private set; }            // 1x1 blanco: sirve para cualquier rectángulo
++        public static Texture2D Circulo { get; private set; }          // círculo lleno con borde suavizado
++        public static Texture2D Brillo { get; private set; }           // círculo difuso (glow / sombra)
++        public static Texture2D DegradeVertical { get; private set; }  // opaco arriba -> transparente abajo
++
++        // ------------------------------------------------------------------
++        // FUENTES
++        // ------------------------------------------------------------------
++        public static SpriteFont Fuente { get; private set; }   // FuentePrincipal (Arial 16)
++        public static SpriteFont Negrita { get; private set; }  // FuenteNegrita (Arial 20 Bold)
++        public static SpriteFont Titulo { get; private set; }   // FuenteTitulo (Arial 40 Bold)
++
++        private static readonly Dictionary<Texture2D, Rectangle> _cacheLimites = new Dictionary<Texture2D, Rectangle>();
++
++        private static readonly NumberFormatInfo _formatoPesos = new NumberFormatInfo
++        {
++            NumberGroupSeparator = ".",
++            NumberDecimalSeparator = ","
++        };
++
++        /// <summary>
++        /// Se llama una vez en Game1.LoadContent(). Si alguna fuente nueva no
++        /// cargó (por ejemplo si falta el archivo), se usa la principal en su lugar.
++        /// </summary>
++        public static void Inicializar(GraphicsDevice graphicsDevice, SpriteFont fuente, SpriteFont negrita, SpriteFont titulo)
++        {
++            Pixel = new Texture2D(graphicsDevice, 1, 1);
++            Pixel.SetData(new[] { Color.White });
++
++            Circulo = CrearCirculo(graphicsDevice, 128, false);
++            Brillo = CrearCirculo(graphicsDevice, 128, true);
++            DegradeVertical = CrearDegradeVertical(graphicsDevice, 256);
++
++            Fuente = fuente;
++            Negrita = negrita ?? fuente;
++            Titulo = titulo ?? Negrita;
++        }
++
++        // ==================================================================
++        // GENERACIÓN DE TEXTURAS
++        // ==================================================================
++
++        /// <summary>
++        /// Crea un círculo blanco. Con "difuso = true" el borde se desvanece de a poco
++        /// (sirve para brillos de luces y sombras debajo de los autos).
++        /// IMPORTANTE: MonoGame trabaja con "alfa premultiplicado", por eso usamos
++        /// Color.White * alfa (multiplica también R, G y B) y no new Color(255,255,255,alfa).
++        /// </summary>
++        private static Texture2D CrearCirculo(GraphicsDevice graphicsDevice, int tamano, bool difuso)
++        {
++            Color[] datos = new Color[tamano * tamano];
++            float radio = tamano / 2f;
++
++            for (int y = 0; y < tamano; y++)
++            {
++                for (int x = 0; x < tamano; x++)
++                {
++                    float dx = x + 0.5f - radio;
++                    float dy = y + 0.5f - radio;
++                    float distancia = (float)Math.Sqrt(dx * dx + dy * dy);
++
++                    float alfa;
++                    if (difuso)
++                    {
++                        float t = MathHelper.Clamp(1f - distancia / radio, 0f, 1f);
++                        alfa = t * t;
++                    }
++                    else
++                    {
++                        alfa = MathHelper.Clamp(radio - distancia, 0f, 1f);
++                    }
++
++                    datos[y * tamano + x] = Color.White * alfa;
++                }
++            }
++
++            Texture2D textura = new Texture2D(graphicsDevice, tamano, tamano);
++            textura.SetData(datos);
++            return textura;
++        }
++
++        private static Texture2D CrearDegradeVertical(GraphicsDevice graphicsDevice, int alto)
++        {
++            Color[] datos = new Color[alto];
++            for (int y = 0; y < alto; y++)
++            {
++                datos[y] = Color.White * (1f - y / (float)(alto - 1));
++            }
++
++            Texture2D textura = new Texture2D(graphicsDevice, 1, alto);
++            textura.SetData(datos);
++            return textura;
++        }
++
++        /// <summary>
++        /// Devuelve el rectángulo donde la imagen tiene píxeles visibles (sin el
++        /// borde transparente). Muchas imágenes generadas con IA traen mucho "aire"
++        /// alrededor y eso hacía que se vieran de distinto tamaño aunque las
++        /// dibujáramos en rectángulos iguales. Se calcula una sola vez por textura.
++        /// </summary>
++        public static Rectangle LimitesOpacos(Texture2D textura)
++        {
++            if (textura == null)
++                return Rectangle.Empty;
++
++            if (_cacheLimites.TryGetValue(textura, out Rectangle guardado))
++                return guardado;
++
++            Color[] datos = new Color[textura.Width * textura.Height];
++            textura.GetData(datos);
++
++            int minX = textura.Width, minY = textura.Height, maxX = -1, maxY = -1;
++            for (int y = 0; y < textura.Height; y++)
++            {
++                int fila = y * textura.Width;
++                for (int x = 0; x < textura.Width; x++)
++                {
++                    if (datos[fila + x].A > 10)
++                    {
++                        if (x < minX) minX = x;
++                        if (x > maxX) maxX = x;
++                        if (y < minY) minY = y;
++                        if (y > maxY) maxY = y;
++                    }
++                }
++            }
++
++            Rectangle resultado = maxX < 0
++                ? textura.Bounds
++                : new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
++
++            _cacheLimites[textura] = resultado;
++            return resultado;
++        }
++
++        // ==================================================================
++        // FIGURAS BÁSICAS
++        // ==================================================================
++
++        public static void Rect(SpriteBatch spriteBatch, Rectangle rectangulo, Color color)
++        {
++            spriteBatch.Draw(Pixel, rectangulo, color);
++        }
++
++        public static void Borde(SpriteBatch spriteBatch, Rectangle r, int grosor, Color color)
++        {
++            Rect(spriteBatch, new Rectangle(r.X, r.Y, r.Width, grosor), color);
++            Rect(spriteBatch, new Rectangle(r.X, r.Bottom - grosor, r.Width, grosor), color);
++            Rect(spriteBatch, new Rectangle(r.X, r.Y + grosor, grosor, r.Height - grosor * 2), color);
++            Rect(spriteBatch, new Rectangle(r.Right - grosor, r.Y + grosor, grosor, r.Height - grosor * 2), color);
++        }
++
++        /// <summary>Sombra suave: varios rectángulos cada vez más grandes y más transparentes.</summary>
++        public static void Sombra(SpriteBatch spriteBatch, Rectangle r, int distancia, float opacidad)
++        {
++            for (int i = distancia; i >= 1; i -= 2)
++            {
++                Rectangle capa = new Rectangle(r.X - i + 2, r.Y - i + 4, r.Width + i * 2 - 4, r.Height + i * 2 - 4);
++                Rect(spriteBatch, capa, Color.Black * (opacidad / distancia * 1.6f));
++            }
++        }
++
++        /// <summary>Degradé de arriba (color opaco) hacia abajo (transparente) o al revés.</summary>
++        public static void Degrade(SpriteBatch spriteBatch, Rectangle r, Color color, bool opacoAbajo = false)
++        {
++            spriteBatch.Draw(DegradeVertical, r, null, color, 0f, Vector2.Zero,
++                opacoAbajo ? SpriteEffects.FlipVertically : SpriteEffects.None, 0f);
++        }
++
++        /// <summary>Brillo circular difuso centrado en un punto (luces, reflectores, sombras).</summary>
++        public static void Resplandor(SpriteBatch spriteBatch, Vector2 centro, float radioX, float radioY, Color color)
++        {
++            Rectangle destino = new Rectangle(
++                (int)(centro.X - radioX), (int)(centro.Y - radioY),
++                (int)(radioX * 2), (int)(radioY * 2));
++            spriteBatch.Draw(Brillo, destino, color);
++        }
++
++        public static void CirculoLleno(SpriteBatch spriteBatch, Vector2 centro, float radio, Color color)
++        {
++            Rectangle destino = new Rectangle(
++                (int)(centro.X - radio), (int)(centro.Y - radio),
++                (int)(radio * 2), (int)(radio * 2));
++            spriteBatch.Draw(Circulo, destino, color);
++        }
++
++        // ==================================================================
++        // COMPONENTES DE INTERFAZ
++        // ==================================================================
++
++        /// <summary>Panel oscuro con sombra, brillo arriba y borde fino.</summary>
++        public static void Panel(SpriteBatch spriteBatch, Rectangle r, float opacidad = 0.94f, Color? colorAcento = null)
++        {
++            Sombra(spriteBatch, r, 12, 0.5f);
++            Rect(spriteBatch, r, ColorPanel * opacidad);
++            Degrade(spriteBatch, new Rectangle(r.X, r.Y, r.Width, Math.Min(80, r.Height)), Color.White * 0.045f);
++            Borde(spriteBatch, r, 1, BordePanel * 0.9f);
++
++            if (colorAcento.HasValue)
++            {
++                Rect(spriteBatch, new Rectangle(r.X, r.Y, r.Width, 4), colorAcento.Value);
++            }
++        }
++
++        /// <summary>
++        /// Botón con estado: normal, "hover" (mouse encima) y deshabilitado.
++        /// </summary>
++        public static void Boton(SpriteBatch spriteBatch, Rectangle r, string texto, bool mouseEncima,
++            bool habilitado = true, Color? colorBase = null, SpriteFont fuente = null)
++        {
++            fuente = fuente ?? Negrita;
++
++            Color fondo = colorBase ?? ColorPanelClaro;
++            if (!habilitado)
++                fondo = new Color(34, 37, 46);
++            else if (mouseEncima)
++                fondo = Color.Lerp(fondo, Color.White, 0.18f);
++
++            Sombra(spriteBatch, r, 6, 0.4f);
++            Rect(spriteBatch, r, fondo);
++            Degrade(spriteBatch, new Rectangle(r.X, r.Y, r.Width, r.Height / 2), Color.White * (mouseEncima && habilitado ? 0.16f : 0.07f));
++            Rect(spriteBatch, new Rectangle(r.X, r.Bottom - 3, r.Width, 3), Color.Black * 0.3f);
++
++            bool resaltar = mouseEncima && habilitado;
++            Borde(spriteBatch, r, resaltar ? 2 : 1, resaltar ? Acento : Color.Black * 0.6f);
++
++            Color colorTexto = habilitado ? TextoClaro : TextoSecundario * 0.6f;
++            TextoCentrado(spriteBatch, fuente, texto, new Vector2(r.Center.X, r.Center.Y + 1), colorTexto);
++        }
++
++        /// <summary>"Píldora" chiquita con etiqueta y valor (por ejemplo: DINERO  $ 7.000.000).</summary>
++        public static Rectangle Chip(SpriteBatch spriteBatch, Vector2 posicion, string etiqueta, string valor, Color colorValor)
++        {
++            Vector2 medidaEtiqueta = Fuente.MeasureString(etiqueta);
++            Vector2 medidaValor = Negrita.MeasureString(valor);
++
++            int ancho = (int)(medidaEtiqueta.X + medidaValor.X + 44);
++            int alto = (int)Math.Max(medidaValor.Y, medidaEtiqueta.Y) + 14;
++            Rectangle r = new Rectangle((int)posicion.X, (int)posicion.Y, ancho, alto);
++
++            Rect(spriteBatch, r, Color.Black * 0.55f);
++            Borde(spriteBatch, r, 1, colorValor * 0.6f);
++            Rect(spriteBatch, new Rectangle(r.X, r.Y, 4, r.Height), colorValor);
++
++            Texto(spriteBatch, Fuente, etiqueta, new Vector2(r.X + 16, r.Center.Y - medidaEtiqueta.Y / 2f), TextoSecundario, 1f, false);
++            Texto(spriteBatch, Negrita, valor, new Vector2(r.X + 28 + medidaEtiqueta.X, r.Center.Y - medidaValor.Y / 2f), colorValor);
++            return r;
++        }
++
++        /// <summary>Ancho que va a ocupar un Chip (para poder alinearlo a la derecha).</summary>
++        public static int AnchoChip(string etiqueta, string valor)
++        {
++            return (int)(Fuente.MeasureString(etiqueta).X + Negrita.MeasureString(valor).X + 44);
++        }
++
++        /// <summary>Barra de progreso / estadística, valor entre 0 y 1.</summary>
++        public static void Barra(SpriteBatch spriteBatch, Rectangle r, float valor, Color color)
++        {
++            valor = MathHelper.Clamp(valor, 0f, 1f);
++            Rect(spriteBatch, r, Color.Black * 0.5f);
++            Rect(spriteBatch, new Rectangle(r.X, r.Y, (int)(r.Width * valor), r.Height), color);
++            Degrade(spriteBatch, new Rectangle(r.X, r.Y, (int)(r.Width * valor), r.Height), Color.White * 0.25f);
++            Borde(spriteBatch, r, 1, Color.Black * 0.6f);
++        }
++
++        /// <summary>Tecla dibujada como "tecla de teclado" con su descripción al lado. Devuelve el ancho usado.</summary>
++        public static int Tecla(SpriteBatch spriteBatch, Vector2 posicion, string tecla, string descripcion)
++        {
++            Vector2 medidaTecla = Negrita.MeasureString(tecla);
++            Rectangle r = new Rectangle((int)posicion.X, (int)posicion.Y, (int)Math.Max(34, medidaTecla.X + 18), 32);
++
++            Rect(spriteBatch, new Rectangle(r.X, r.Y + 3, r.Width, r.Height), Color.Black * 0.6f);
++            Rect(spriteBatch, r, new Color(230, 232, 238));
++            Rect(spriteBatch, new Rectangle(r.X, r.Bottom - 4, r.Width, 4), new Color(170, 174, 186));
++            TextoCentrado(spriteBatch, Negrita, tecla, new Vector2(r.Center.X, r.Center.Y - 1), new Color(30, 32, 40), 1f, false);
++
++            Vector2 medidaDescripcion = Fuente.MeasureString(descripcion);
++            Texto(spriteBatch, Fuente, descripcion, new Vector2(r.Right + 10, r.Center.Y - medidaDescripcion.Y / 2f), TextoClaro);
++
++            return r.Width + 10 + (int)medidaDescripcion.X + 26;
++        }
++
++        // ==================================================================
++        // TEXTO
++        // ==================================================================
++
++        /// <summary>Texto con sombrita abajo a la derecha: se lee bien sobre cualquier fondo.</summary>
++        public static void Texto(SpriteBatch spriteBatch, SpriteFont fuente, string texto, Vector2 posicion, Color color,
++            float escala = 1f, bool sombra = true)
++        {
++            // Redondear evita que el texto se vea borroso por quedar "entre píxeles".
++            posicion = new Vector2((float)Math.Round(posicion.X), (float)Math.Round(posicion.Y));
++
++            if (sombra)
++            {
++                float desplazamiento = Math.Max(1f, 2f * escala);
++                spriteBatch.DrawString(fuente, texto, posicion + new Vector2(desplazamiento, desplazamiento),
++                    Color.Black * 0.65f * (color.A / 255f), 0f, Vector2.Zero, escala, SpriteEffects.None, 0f);
++            }
++
++            spriteBatch.DrawString(fuente, texto, posicion, color, 0f, Vector2.Zero, escala, SpriteEffects.None, 0f);
++        }
++
++        public static void TextoCentrado(SpriteBatch spriteBatch, SpriteFont fuente, string texto, Vector2 centro, Color color,
++            float escala = 1f, bool sombra = true)
++        {
++            Vector2 medida = fuente.MeasureString(texto) * escala;
++            Texto(spriteBatch, fuente, texto, centro - medida / 2f, color, escala, sombra);
++        }
++
++        /// <summary>Texto alineado a la derecha: "posicion" es la esquina superior DERECHA.</summary>
++        public static void TextoDerecha(SpriteBatch spriteBatch, SpriteFont fuente, string texto, Vector2 posicion, Color color,
++            float escala = 1f, bool sombra = true)
++        {
++            Vector2 medida = fuente.MeasureString(texto) * escala;
++            Texto(spriteBatch, fuente, texto, new Vector2(posicion.X - medida.X, posicion.Y), color, escala, sombra);
++        }
++
++        /// <summary>Formato argentino: 7000000 -> "$ 7.000.000".</summary>
++        public static string Dinero(decimal cantidad)
++        {
++            return "$ " + cantidad.ToString("N0", _formatoPesos);
++        }
++
++        // ==================================================================
++        // FONDOS
++        // ==================================================================
++
++        /// <summary>
++        /// Calcula qué parte de una imagen hay que usar para llenar la pantalla
++        /// SIN deformarla (como "background-size: cover" en CSS). Antes los fondos
++        /// se estiraban y en monitores que no son 16:9 se veían aplastados.
++        /// </summary>
++        public static Rectangle RecorteParaCubrir(Texture2D textura, int anchoPantalla, int altoPantalla)
++        {
++            float aspectoTextura = textura.Width / (float)textura.Height;
++            float aspectoPantalla = anchoPantalla / (float)altoPantalla;
++
++            if (aspectoPantalla > aspectoTextura)
++            {
++                // Pantalla más ancha: usamos todo el ancho y recortamos arriba y abajo.
++                int altoFuente = (int)(textura.Width / aspectoPantalla);
++                return new Rectangle(0, (textura.Height - altoFuente) / 2, textura.Width, altoFuente);
++            }
++            else
++            {
++                // Pantalla más angosta: usamos todo el alto y recortamos los costados.
++                int anchoFuente = (int)(textura.Height * aspectoPantalla);
++                return new Rectangle((textura.Width - anchoFuente) / 2, 0, anchoFuente, textura.Height);
++            }
++        }
++
++        public static void FondoCubriendo(SpriteBatch spriteBatch, Texture2D textura, int anchoPantalla, int altoPantalla, Color tinte)
++        {
++            Rectangle recorte = RecorteParaCubrir(textura, anchoPantalla, altoPantalla);
++            spriteBatch.Draw(textura, new Rectangle(0, 0, anchoPantalla, altoPantalla), recorte, tinte);
++        }
++
++        /// <summary>
++        /// Convierte un punto de la imagen de fondo (u, v entre 0 y 1) a coordenadas de pantalla,
++        /// teniendo en cuenta el recorte de FondoCubriendo. Sirve para apoyar el auto
++        /// justo sobre la mancha del piso del taller en cualquier resolución.
++        /// </summary>
++        public static Vector2 PuntoDelFondo(Texture2D textura, int anchoPantalla, int altoPantalla, float u, float v)
++        {
++            Rectangle recorte = RecorteParaCubrir(textura, anchoPantalla, altoPantalla);
++            float escala = anchoPantalla / (float)recorte.Width;
++            return new Vector2(
++                (u * textura.Width - recorte.X) * escala,
++                (v * textura.Height - recorte.Y) * escala);
++        }
++
++        /// <summary>Escala que tiene el fondo al cubrir la pantalla (píxeles de pantalla por píxel de imagen).</summary>
++        public static float EscalaDelFondo(Texture2D textura, int anchoPantalla, int altoPantalla)
++        {
++            Rectangle recorte = RecorteParaCubrir(textura, anchoPantalla, altoPantalla);
++            return anchoPantalla / (float)recorte.Width;
++        }
++
++        /// <summary>Oscurece los bordes superior e inferior de la pantalla (efecto "cine").</summary>
++        public static void Vineta(SpriteBatch spriteBatch, int ancho, int alto, float intensidad)
++        {
++            int franja = alto / 3;
++            Degrade(spriteBatch, new Rectangle(0, 0, ancho, franja), Color.Black * intensidad);
++            Degrade(spriteBatch, new Rectangle(0, alto - franja, ancho, franja), Color.Black * intensidad, true);
++        }
++
++        // ==================================================================
++        // UTILIDADES
++        // ==================================================================
++
++        /// <summary>Número "al azar" pero siempre igual para el mismo índice (para generar edificios fijos).</summary>
++        public static float AzarFijo(int indice, int semilla)
++        {
++            unchecked
++            {
++                uint h = (uint)(indice * 374761393 + semilla * 668265263);
++                h = (h ^ (h >> 13)) * 1274126177u;
++                h ^= h >> 16;
++                return (h & 0xFFFF) / 65535f;
++            }
++        }
++
++        /// <summary>Mueve un valor hacia un objetivo de forma suave (para animaciones de hover).</summary>
++        public static float Acercar(float actual, float objetivo, float velocidad, float dt)
++        {
++            float diferencia = objetivo - actual;
++            float paso = velocidad * dt;
++            if (Math.Abs(diferencia) <= paso)
++                return objetivo;
++            return actual + Math.Sign(diferencia) * paso;
++        }
++    }
++}

@@ -68,3 +68,28 @@ Este archivo documenta todos los hitos y mejoras significativas en el desarrollo
 - No hay fondo/pista real (las marcas de distancia son un parche temporal hasta tener el asset de fondo).
 - Pantalla de Concesionario no implementada (archivo vacío).
 - Sin red/multijugador todavía (Etapas 3-4 de la propuesta).
+
+## [0.3.0] - 2026-11-05
+
+### Mejora visual general (detalle completo y explicado en `CAMBIOS.md`)
+- **Nuevo `Sistemas/UI.cs`**: paleta de colores única, paneles, botones con hover, chips, barras, texto con sombra, fondos sin deformar ("cover") y recorte automático del borde transparente de las imágenes.
+- **Nuevas fuentes** `FuenteTitulo` (Arial Bold 40) y `FuenteNegrita` (Arial Bold 20). Se agregaron al `Content.mgcb` junto con `motor.png`, `turbo.png` y `neumatico.png`.
+- **Ruedas**: medidas exactas por auto (posición y diámetro), giro físico `distancia / radio`, el rival también gira las ruedas, llantas siempre redondas, desenfoque de movimiento y autos apoyados sobre la línea del piso.
+- **Menú**: botones centrados (CORRER al medio), hover animado, botón SALIR, barra con piloto/auto/dinero, fondo sin deformar.
+- **Configuración**: centrada (se implementó `ObtenerDesplazamiento()`), barra de volumen clickeable, se muestra sobre el menú.
+- **Concesionario**: tarjetas con foto del auto con llantas, precio y barras de estadísticas, layout centrado, botón VOLVER.
+- **Taller**: auto apoyado sobre la mancha del piso del fondo (antes quedaba fuera de pantalla), pestañas, íconos, ficha técnica, mensajes al instalar.
+- **Carrera**: escenario completo con parallax (cielo, edificios, faroles, carteles de distancia, largada, meta a cuadros, guardarraíl), cámara con zoom según la resolución, humo de gomas, HUD nuevo con mini-mapa, panel de resultado con tiempo de reacción.
+- **Semáforo**: se usan los 6 sprites sin deformarse ni "saltar", parado en la pista junto a la largada, con el texto al costado.
+
+### Correcciones
+- La carrera arrancaba 0.8 s después del verde (se perdía el tiempo de reacción). Ahora arranca en el instante del verde.
+- `Game1` pintaba de negro la textura de píxel compartida (`SetData(Color.Black)`).
+- `Mover(Rectangle)` de Configuración no sumaba el desplazamiento en Y.
+- Un clic al volver de otra pantalla podía activar un botón del menú o instalar una pieza sin querer (se agregó `Reiniciar()`).
+- `Velocimetro.png` tenía un rectángulo gris semitransparente: se limpia al cargar.
+- Al volver a entrar a Carrera siempre se reinicia la largada.
+
+### Pendiente
+- Rival con aceleración real / IA fantasma, sonidos, módulo de red.
+- Compilar y probar en Windows (los cambios se revisaron a mano, sin compilador).

@@ -4,12 +4,19 @@ using La35Tunning.Entidades;
 
 namespace La35Tunning.Factories
 {
+    /// <summary>
+    /// Los últimos 4 números de cada auto son la posición de las llantas, medidas
+    /// sobre la imagen tal como se ve en el juego (dada vuelta, mirando a la derecha):
+    ///   llanta izquierda X, llanta derecha X, centro de llantas Y, diámetro de llanta.
+    /// X y diámetro son fracción del ANCHO de la imagen; Y es fracción del ALTO.
+    /// Se midieron sobre los pasaruedas de cada sprite (ver CAMBIOS.md).
+    /// </summary>
     public static class AutoFactory
     {
         public static Auto CrearGol(ContentManager content, Texture2D texturaLlantas)
         {
             Texture2D texturaGol = content.Load<Texture2D>("gol");
-            Auto auto = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, texturaGol, null, 0.13f, 0.77f, 0.7f);
+            Auto auto = new Auto("Volkswagen Gol G3", 8f, 0.15f, 4500000, texturaGol, null, 0.133f, 0.765f, 0.705f, 0.148f);
             auto.InstalarLlantas(texturaLlantas, texturaLlantas);
             return auto;
         }
@@ -17,7 +24,7 @@ namespace La35Tunning.Factories
         public static Auto CrearUno(ContentManager content, Texture2D texturaLlantas)
         {
             Texture2D texturaUno = content.Load<Texture2D>("Uno");
-            Auto auto = new Auto("Fiat Uno", 7.5f, 0.18f, 3800000, texturaUno, null, 0.2f, 0.78f, 0.73f);
+            Auto auto = new Auto("Fiat Uno", 7.5f, 0.18f, 3800000, texturaUno, null, 0.180f, 0.778f, 0.746f, 0.143f);
             auto.InstalarLlantas(texturaLlantas, texturaLlantas);
             return auto;
         }
@@ -25,7 +32,7 @@ namespace La35Tunning.Factories
         public static Auto CrearClio(ContentManager content, Texture2D texturaLlantas)
         {
             Texture2D texturaClio = content.Load<Texture2D>("clio");
-            Auto auto = new Auto("Renault Clio", 8.5f, 0.16f, 5200000, texturaClio, null, 0.17f, 0.79f, 0.84f);
+            Auto auto = new Auto("Renault Clio", 8.5f, 0.16f, 5200000, texturaClio, null, 0.164f, 0.785f, 0.872f, 0.158f);
             auto.InstalarLlantas(texturaLlantas, texturaLlantas);
             return auto;
         }
@@ -33,7 +40,7 @@ namespace La35Tunning.Factories
         public static Auto CrearCorsa(ContentManager content, Texture2D texturaLlantas)
         {
             Texture2D texturaCorsa = content.Load<Texture2D>("corsa");
-            Auto auto = new Auto("Chevrolet Corsa", 8f, 0.15f, 4200000, texturaCorsa, null, 0.19f, 0.77f, 0.82f);
+            Auto auto = new Auto("Chevrolet Corsa", 8f, 0.15f, 4200000, texturaCorsa, null, 0.184f, 0.775f, 0.851f, 0.148f);
             auto.InstalarLlantas(texturaLlantas, texturaLlantas);
             return auto;
         }

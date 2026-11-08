@@ -73,6 +73,12 @@ namespace La35Tunning
                 System.Diagnostics.Debug.WriteLine("Error cargando fuente: " + ex.Message);
             }
 
+            // NUEVO: fuentes en negrita para títulos y botones. Si alguna no carga,
+            // UI.Inicializar usa la principal en su lugar y el juego sigue andando.
+            SpriteFont fuenteNegrita = CargarFuenteOpcional("FuenteNegrita");
+            SpriteFont fuenteTitulo = CargarFuenteOpcional("FuenteTitulo");
+            UI.Inicializar(GraphicsDevice, _fuente, fuenteNegrita, fuenteTitulo);
+
             try
             {
                 CrearPantallaMenuYMusica();
@@ -81,6 +87,19 @@ namespace La35Tunning
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("Error inicializando pantallas: " + ex.Message);
+            }
+        }
+
+        private SpriteFont CargarFuenteOpcional(string nombre)
+        {
+            try
+            {
+                return Content.Load<SpriteFont>(nombre);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"No se pudo cargar {nombre}: {ex.Message}");
+                return null;
             }
         }
 
@@ -128,6 +147,7 @@ namespace La35Tunning
 
                 case EstadoJuego.Configuracion:
                     _spriteBatch.Begin();
+                    _menuPrincipal?.Draw(_spriteBatch, _fuente, GraphicsDevice);   // NUEVO: el menú queda de fondo
                     DibujarConfiguracion();
                     _spriteBatch.End();
                     break;
@@ -139,6 +159,7 @@ namespace La35Tunning
         private void CrearPantallaMenuYMusica()
         {
             _menuPrincipal = new MenuPrincipal(Content, GraphicsDevice);
+            _menuPrincipal.JugadorActual = _jugador;
             _musicaMenu = Content.Load<Song>("Sonidos/Fiat 600 - Tussiwarriors");
             MediaPlayer.IsRepeating = true;
             MediaPlayer.Volume = 0f;
@@ -168,8 +189,8 @@ namespace La35Tunning
                     Content.Load<Texture2D>("semaforo4"),
                     Content.Load<Texture2D>("semaforo5"),
                     Content.Load<Texture2D>("semaforoFallida")),
-                200f,
-                400f,
+                590f,   // carril del jugador (línea del piso, adelante)
+                440f,   // carril del rival (línea del piso, atrás)
                 _texturaPixel,
                 Content.Load<Texture2D>("Velocimetro"),
                 Content.Load<Texture2D>("Aguja_Velocimetro"),
@@ -219,6 +240,12 @@ namespace La35Tunning
 
             _menuPrincipal.Update(gameTime);
 
+            if (_menuPrincipal.QuiereSalir)
+            {
+                Exit();
+                return;
+            }
+
             if (_menuPrincipal.SiguienteEstado.HasValue)
             {
                 CambiarEstado(_menuPrincipal.SiguienteEstado.Value);
@@ -236,7 +263,7 @@ namespace La35Tunning
                 System.Diagnostics.Debug.WriteLine("Error en Update de Taller: " + ex.Message);
             }
 
-            if (Keyboard.GetState().IsKeyDown(Keys.Escape))
+            if (Keyboard.GetState().IsKeyDown(Keys.Escape) || (_pantallaTaller != null && _pantallaTaller.DebeVolver))
             {
                 CambiarEstado(EstadoJuego.MenuPrincipal);
             }
@@ -246,7 +273,7 @@ namespace La35Tunning
         {
             _pantallaConcesionario?.Update(gameTime);
 
-            if (Keyboard.GetState().IsKeyDown(Keys.Escape))
+            if (Keyboard.GetState().IsKeyDown(Keys.Escape) || (_pantallaConcesionario != null && _pantallaConcesionario.DebeVolver))
             {
                 CambiarEstado(EstadoJuego.MenuPrincipal);
             }
@@ -281,8 +308,15 @@ namespace La35Tunning
 
             if (_tiempoMensajeError > 0f)
             {
-                _spriteBatch.Draw(_texturaPixel, new Rectangle(0, 0, GraphicsDevice.Viewport.Width, 100), Color.Black * 0.7f);
-                _spriteBatch.DrawString(_fuente, _mensajeError, new Vector2(50, 20), Color.Red);
+                // NUEVO: cartel centrado con estilo (antes: franja negra con texto rojo arriba a la izquierda).
+                float opacidad = MathHelper.Clamp(_tiempoMensajeError / 0.4f, 0f, 1f);
+                Vector2 medida = UI.Negrita.MeasureString(_mensajeError);
+                int ancho = (int)medida.X + 60;
+                Rectangle caja = new Rectangle(GraphicsDevice.Viewport.Width / 2 - ancho / 2, 110, ancho, 56);
+                UI.Rect(_spriteBatch, caja, Color.Black * 0.85f * opacidad);
+                UI.Rect(_spriteBatch, new Rectangle(caja.X, caja.Y, 5, caja.Height), UI.Rojo * opacidad);
+                UI.Borde(_spriteBatch, caja, 1, UI.Rojo * 0.7f * opacidad);
+                UI.TextoCentrado(_spriteBatch, UI.Negrita, _mensajeError, new Vector2(caja.Center.X, caja.Center.Y + 1), UI.TextoClaro * opacidad);
             }
         }
 
@@ -316,8 +350,18 @@ namespace La35Tunning
 
             if (_camara != null && _jugador.AutoActual != null)
             {
-                _camara.Update(_jugador.AutoActual.Posicion);
+                // NUEVO: el zoom depende del alto de la pantalla, así la pista se ve igual
+                // en cualquier monitor (antes era 0.5 fijo y los autos quedaban chiquitos).
+                _camara.Zoom = GraphicsDevice.Viewport.Height / PantallaCarrera.AltoVisibleMundo;
+                float anchoVisibleMundo = GraphicsDevice.Viewport.Width / _camara.Zoom;
+                _camara.Update(_pantallaCarrera.ObtenerCentroCamara(anchoVisibleMundo));
 
+                // 1) Fondo (cielo y edificios con parallax) en coordenadas de pantalla
+                _spriteBatch.Begin();
+                _pantallaCarrera.DibujarFondo(_spriteBatch, _camara);
+                _spriteBatch.End();
+
+                // 2) Pista y autos con la cámara
                 _spriteBatch.Begin(transformMatrix: _camara.Transform);
                 _pantallaCarrera.Draw(_spriteBatch);
                 _spriteBatch.End();
@@ -334,7 +378,8 @@ namespace La35Tunning
             int alto = GraphicsDevice.Viewport.Height;
             Vector2 posicion = new Vector2((ancho - tamanoTexto.X) / 2, (alto - tamanoTexto.Y) / 2);
 
-            _texturaPixel.SetData(new[] { Color.Black });
+            // ANTES: _texturaPixel.SetData(new[] { Color.Black }); -> pintaba de negro la textura
+            // que también usan otras pantallas. No hace falta: Color.Black * 0.5f ya la tiñe.
             _spriteBatch.Begin();
             _spriteBatch.Draw(_texturaPixel, new Rectangle(0, 0, ancho, alto), Color.Black * 0.5f);
             _spriteBatch.DrawString(_fuente, mensajeError, posicion, Color.Red);
@@ -369,7 +414,19 @@ namespace La35Tunning
                 if (_pantallaCarrera != null)
                 {
                     _pantallaCarrera.CambiarAutoJugador(_jugador.AutoActual);
+                    _pantallaCarrera.IniciarNuevaCarrera();   // NUEVO: siempre arrancar con el semáforo desde cero
                 }
+            }
+
+            // NUEVO: al entrar a una pantalla se "olvida" el clic que nos trajo hasta acá.
+            if (nuevoEstado == EstadoJuego.MenuPrincipal)
+            {
+                _menuPrincipal?.Reiniciar();
+            }
+
+            if (nuevoEstado == EstadoJuego.Taller)
+            {
+                _pantallaTaller?.Reiniciar();
             }
 
             if (nuevoEstado == EstadoJuego.Configuracion)

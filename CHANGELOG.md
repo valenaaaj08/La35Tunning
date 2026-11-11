@@ -93,3 +93,20 @@ Este archivo documenta todos los hitos y mejoras significativas en el desarrollo
 ### Pendiente
 - Rival con aceleración real / IA fantasma, sonidos, módulo de red.
 - Compilar y probar en Windows (los cambios se revisaron a mano, sin compilador).
+
+## [0.4.0] - 2026-11-11
+
+### Juego en red (LAN), cliente-servidor
+- **Nuevo proyecto `La35Tunning.Servidor`** (consola): junta a 2 jugadores, les manda el mismo semáforo, reenvía las posiciones, decide el ganador y da por ganador al que queda si el otro se desconecta. Rechaza tiempos imposibles (menos de 4 s).
+- **Nuevo `Sistemas/ClienteRed.cs`**: conexión TCP con un hilo que lee los mensajes del servidor.
+- **Nueva `Escenas/PantallaRed.cs`**: escribir la IP del servidor y esperar al rival.
+- Menú: botón **JUGAR EN RED (LAN)**. `EstadoJuego.Red`.
+- `PantallaCarrera`: modo en red (el rival se mueve con lo que manda el servidor y el resultado lo decide el servidor). `Semaforo.ReiniciarConEspera()` y `Auto.MoverA()`.
+
+### Caja de cambios y nombres
+- **5 marchas sin embrague**: ESPACIO sube un cambio. Cada marcha tiene un tope de velocidad y empuja menos cuanto más alta es. El tablero marca las RPM, muestra la marcha, avisa "¡CAMBIÁ!" y califica cada cambio (perfecto / bueno / temprano).
+- **Carrera más larga**: `DistanciaMeta` pasa de 2800 a 4400 (unos 12 s) y cada marcha dura alrededor de 1 s. El rival de la máquina ahora acelera de a poco.
+- **Nombre del jugador**: se elige en la pantalla JUGAR EN RED (antes siempre era "Valentin"). Lo ven el rival y el servidor.
+
+### Correcciones
+- Si ya compraste una pieza y te pusiste otra, no podías volver a ponerte la primera. Ahora se vuelve a poner gratis y el taller muestra PUESTA / COMPRADA.

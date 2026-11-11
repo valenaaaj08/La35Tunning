@@ -19,7 +19,21 @@ namespace La35Tunning.Escenas
     public class PantallaCarrera : IPantallas
     {
         private Auto _autoJugador;
-        private readonly Auto _autoRival;
+        private Auto _autoRival;                 // CAMBIO: ya no es readonly, en red se usa el auto del otro jugador
+        private readonly Auto _autoRivalLocal;   // NUEVO: el rival de siempre, para volver a él al salir de la red
+
+        // ---- NUEVO: modo en red ----
+        private ClienteRed _red;                 // null = carrera normal contra la máquina
+        private string _nombreRival = "RIVAL";
+        private string _resultadoRed;            // "GANASTE", "PERDISTE", "ERROR" o null si todavía no llegó
+        private string _motivoRed = "";
+        private bool _metaEnviada;
+
+        // ---- NUEVO: cartel que aparece al pasar un cambio ----
+        private string _textoCambio = "";
+        private float _tiempoTextoCambio;
+
+        public bool EnRed { get { return _red != null; } }
         private readonly Semaforo _semaforo;
         private readonly Texture2D _texturaPixel;
         private readonly Texture2D _texturaVelocimetro;
@@ -38,13 +52,14 @@ namespace La35Tunning.Escenas
         private const float DuracionVerde = 0.8f;
 
         private const float EscalaTablero = 0.55f;
-        private const float EscalaAguja = 0.70f;
-        private const float PosicionPivotePantallaX = 246f;
-        private const float PosicionPivotePantallaY = 260f;
-        private const float PosicionOrigenAgujaX = 130f;
-        private const float PosicionOrigenAgujaY = 130f;
-        private const float AnguloAgujaEnVelocidadCero = -45f;
-        private const float AnguloAgujaEnVelocidadMaxima = 250f;
+        // CAMBIO: valores medidos sobre las imágenes (antes estaban a ojo y la aguja se pasaba del 9).
+        private const float EscalaAguja = 0.64f;                // así la aguja llega justo hasta las rayitas
+        private const float PosicionPivotePantallaX = 261f;     // centro del arco del reloj en Velocimetro.png
+        private const float PosicionPivotePantallaY = 236f;
+        private const float PosicionOrigenAgujaX = 143.5f;      // centro del botón azul de Aguja_Velocimetro.png
+        private const float PosicionOrigenAgujaY = 124.5f;
+        private const float AnguloAgujaEnVelocidadCero = -46.6f;     // apunta al 0
+        private const float AnguloAgujaEnVelocidadMaxima = 181.4f;   // apunta al 9 (antes 250: se pasaba ~70 grados)
 
         public EstadoCarrera Estado { get; private set; }
 
@@ -52,7 +67,9 @@ namespace La35Tunning.Escenas
         private float _tiempoFinalJugador;
         private float _tiempoFinalRival;
 
-        private const float VelocidadRivalProvisoria = 6.5f;
+        private const float VelocidadRivalProvisoria = 7.0f;   // CAMBIO: antes 6.5 desde el primer cuadro
+        private const float AceleracionRival = 0.025f;         // NUEVO: ahora el rival acelera de a poco
+        private float _velocidadRival;
 
         private KeyboardState _tecladoAnterior;
 
@@ -99,6 +116,7 @@ namespace La35Tunning.Escenas
         {
             _autoJugador = autoJugador;
             _autoRival = autoRival;
+            _autoRivalLocal = autoRival;
             _semaforo = semaforo;
             _carrilJugadorY = carrilJugadorY;
             _carrilRivalY = carrilRivalY;
@@ -156,6 +174,11 @@ namespace La35Tunning.Escenas
             _tiempoMostrarVerde = 0f;
             _tiempoReaccion = -1f;
             _premioCobrado = false;
+            _resultadoRed = null;
+            _motivoRed = "";
+            _metaEnviada = false;
+            _tiempoTextoCambio = 0f;
+            _velocidadRival = 0f;
             _humo.Clear();
 
             Estado = EstadoCarrera.Largada;
@@ -170,10 +193,69 @@ namespace La35Tunning.Escenas
             IniciarNuevaCarrera();
         }
 
+        // ==================================================================
+        // NUEVO: CARRERA EN RED
+        // ==================================================================
+
+        /// <summary>Arranca una carrera contra otro jugador. La llama Game1 cuando el servidor manda INICIO.</summary>
+        public void IniciarCarreraEnRed(ClienteRed red, Auto autoRival, string nombreRival, float esperaVerde)
+        {
+            _red = red;
+            _autoRival = autoRival;
+            _nombreRival = nombreRival;
+            IniciarNuevaCarrera();
+            _semaforo.ReiniciarConEspera(esperaVerde);   // mismo semáforo que el otro jugador
+            _estadoSemaforoAnterior = _semaforo.Estado;
+        }
+
+        /// <summary>Corta la conexión y vuelve al rival de siempre. Game1 la llama al salir de la carrera.</summary>
+        public void SalirDeRed()
+        {
+            _red?.Cerrar();
+            _red = null;
+            _autoRival = _autoRivalLocal;
+            _nombreRival = "RIVAL";
+        }
+
+        /// <summary>Lee todo lo que mandó el servidor desde el cuadro anterior.</summary>
+        private void ProcesarMensajesDeRed()
+        {
+            while (_red.TryRecibir(out string mensaje))
+            {
+                string[] partes = mensaje.Split('|');
+
+                if (partes[0] == "RIVAL")
+                {
+                    _autoRival.MoverA(ClienteRed.LeerNumero(partes[1]));
+                }
+                else if (partes[0] == "RESULTADO")
+                {
+                    _resultadoRed = partes[1];
+                    _motivoRed = partes.Length > 2 ? partes[2] : "";
+                    Estado = EstadoCarrera.Terminada;
+
+                    if (_resultadoRed == "GANASTE" && !_premioCobrado)
+                    {
+                        _jugador.SumarDinero(PremioPorGanar);
+                        _premioCobrado = true;
+                    }
+                }
+                else if (partes[0] == "DESCONECTADO" && _resultadoRed == null)
+                {
+                    _resultadoRed = "ERROR";
+                    _motivoRed = "Se perdió la conexión con el servidor.";
+                    Estado = EstadoCarrera.Terminada;
+                }
+            }
+        }
+
         public void Update(GameTime gameTime)
         {
             if (_autoJugador == null || _autoRival == null)
                 return;
+
+            if (EnRed)
+                ProcesarMensajesDeRed();
 
             switch (Estado)
             {
@@ -215,6 +297,7 @@ namespace La35Tunning.Escenas
             if (salioAntes)
             {
                 _semaforo.NotificarIntentoDeAcelerar();
+                _red?.Enviar("SALIDA_ANTICIPADA");   // NUEVO: en red, el servidor decide que perdiste
             }
 
             if (_semaforo.HuboSalidaAnticipada)
@@ -260,7 +343,25 @@ namespace La35Tunning.Escenas
             }
 
             _autoJugador.ActualizarEnCarrera(gameTime, semaforoEnVerde: true);
-            _autoRival.AvanzarDistancia(VelocidadRivalProvisoria);
+
+            // NUEVO: ESPACIO pasa un cambio (solo cuenta el momento de apretar, no mantenerla)
+            bool apretoEspacio = Keyboard.GetState().IsKeyDown(Keys.Space) && _tecladoAnterior.IsKeyUp(Keys.Space);
+            if (apretoEspacio && !_autoJugador.LlegoAMeta)
+            {
+                string resultado = _autoJugador.PasarCambio();
+                if (resultado != "")
+                {
+                    _textoCambio = resultado;
+                    _tiempoTextoCambio = 1f;
+                }
+            }
+            if (_tiempoTextoCambio > 0f)
+                _tiempoTextoCambio -= dt;
+            if (!EnRed)   // en red, al rival lo mueve el servidor
+            {
+                _velocidadRival = Math.Min(_velocidadRival + AceleracionRival, VelocidadRivalProvisoria);
+                _autoRival.AvanzarDistancia(_velocidadRival);
+            }
 
             // NUEVO: humo de gomas al salir (jugador mientras acelera fuerte, rival el primer segundo).
             if (Keyboard.GetState().IsKeyDown(Keys.W) && _autoJugador.VelocidadActual < 5f)
@@ -273,6 +374,19 @@ namespace La35Tunning.Escenas
 
             if (_autoRival.LlegoAMeta && _tiempoFinalRival == 0f)
                 _tiempoFinalRival = _cronometro;
+
+            if (EnRed)
+            {
+                // NUEVO: le contamos al servidor dónde estamos y, al llegar, nuestro tiempo.
+                // Quién gana NO lo decidimos acá: lo decide el servidor y llega en "RESULTADO".
+                _red.Enviar("POS|" + ClienteRed.Numero(_autoJugador.Posicion.X));
+                if (_autoJugador.LlegoAMeta && !_metaEnviada)
+                {
+                    _red.Enviar("META|" + ClienteRed.Numero(_tiempoFinalJugador));
+                    _metaEnviada = true;
+                }
+                return;
+            }
 
             if (TerminoLaCarrera())
             {
@@ -288,6 +402,9 @@ namespace La35Tunning.Escenas
 
         private void ActualizarPantallaDeResultado()
         {
+            if (EnRed)
+                return;   // en red no hay revancha con ENTER: hay que volver a conectarse
+
             var tecladoActual = Keyboard.GetState();
             bool sePresionoAhora = tecladoActual.IsKeyDown(Keys.Enter) && !_tecladoAnterior.IsKeyDown(Keys.Enter);
 
@@ -704,6 +821,7 @@ namespace La35Tunning.Escenas
             float x = 24;
             float y = altoPantalla - 52;
             x += UI.Tecla(spriteBatch, new Vector2(x, y), "W", "Acelerar (soltar = frenar)");
+            x += UI.Tecla(spriteBatch, new Vector2(x, y), "ESPACIO", "Pasar cambio");
             UI.Tecla(spriteBatch, new Vector2(x, y), "ESC", "Menú");
 
             bool mostrarSemaforo = Estado == EstadoCarrera.Largada
@@ -759,7 +877,7 @@ namespace La35Tunning.Escenas
             Vector2 jugador = new Vector2(barra.X + barra.Width * _autoJugador.ProgresoCarrera, barra.Center.Y);
 
             UI.CirculoLleno(spriteBatch, rival, 8, UI.Rojo);
-            UI.TextoCentrado(spriteBatch, UI.Fuente, "RIVAL", rival + new Vector2(0, -18), UI.Rojo, 0.7f);
+            UI.TextoCentrado(spriteBatch, UI.Fuente, _nombreRival.ToUpper(), rival + new Vector2(0, -18), UI.Rojo, 0.7f);
             UI.CirculoLleno(spriteBatch, jugador, 9, UI.Acento);
             UI.TextoCentrado(spriteBatch, UI.Fuente, "VOS", jugador + new Vector2(0, 19), UI.Acento, 0.7f);
         }
@@ -790,8 +908,8 @@ namespace La35Tunning.Escenas
                 SpriteEffects.None,
                 0f);
 
-            float velocidadMaxima = 12f;
-            float velocidadPorcentaje = _autoJugador.VelocidadActual / velocidadMaxima;
+            // CAMBIO: la aguja ahora marca las RPM de la marcha actual (antes: velocidad / 12).
+            float velocidadPorcentaje = _autoJugador.Rpm;
             if (velocidadPorcentaje < 0f) velocidadPorcentaje = 0f;
             if (velocidadPorcentaje > 1f) velocidadPorcentaje = 1f;
 
@@ -822,6 +940,23 @@ namespace La35Tunning.Escenas
                 0f);
 
             // Velocidad en números (aproximada para mostrar)
+            // NUEVO: marcha actual al lado del tablero. Se pone roja y titila cuando conviene cambiar.
+            bool convieneCambiar = _autoJugador.Rpm >= 0.9f && _autoJugador.Marcha < Auto.CantidadMarchas && Estado == EstadoCarrera.Corriendo;
+            bool titilar = convieneCambiar && (int)(_cronometro * 8) % 2 == 0;
+            Vector2 posicionMarcha = new Vector2(tableroX - 70, tableroY + altoTablero / 2f);
+            UI.TextoCentrado(spriteBatch, UI.Fuente, "MARCHA", posicionMarcha + new Vector2(0, -48), UI.TextoSecundario);
+            UI.TextoCentrado(spriteBatch, UI.Titulo, _autoJugador.Marcha.ToString(), posicionMarcha, titilar ? UI.Rojo : UI.TextoClaro, 1.6f);
+            if (convieneCambiar)
+                UI.TextoCentrado(spriteBatch, UI.Negrita, "¡CAMBIÁ!", posicionMarcha + new Vector2(0, 48), UI.Rojo);
+
+            // NUEVO: cartel de "CAMBIO PERFECTO / BUEN CAMBIO / CAMBIO TEMPRANO"
+            if (_tiempoTextoCambio > 0f)
+            {
+                Color colorCambio = _textoCambio.StartsWith("¡") ? UI.Verde : (_textoCambio.StartsWith("BUEN") ? UI.Acento : UI.Rojo);
+                UI.TextoCentrado(spriteBatch, UI.Titulo, _textoCambio, new Vector2(anchoPantalla / 2f, altoPantalla * 0.82f),
+                    colorCambio * MathHelper.Clamp(_tiempoTextoCambio * 2f, 0f, 1f), 0.8f);
+            }
+
             int kmh = (int)(_autoJugador.VelocidadActual * 18f);
             UI.TextoCentrado(spriteBatch, UI.Titulo, kmh.ToString(), new Vector2(tableroX + anchoTablero / 2f, tableroY - 30), UI.TextoClaro, 0.9f);
             UI.TextoCentrado(spriteBatch, UI.Fuente, "km/h", new Vector2(tableroX + anchoTablero / 2f, tableroY - 2), UI.TextoSecundario);
@@ -921,6 +1056,21 @@ namespace La35Tunning.Escenas
                 subtitulo = "El rival cruzó primero. ¡Mejorá el auto en el taller!";
             }
 
+            // NUEVO: en red el resultado lo manda el servidor.
+            if (EnRed && _resultadoRed != null)
+            {
+                gano = _resultadoRed == "GANASTE";
+                titulo = gano ? "GANASTE" : (_resultadoRed == "ERROR" ? "SIN CONEXIÓN" : "PERDISTE");
+                colorTitulo = gano ? UI.Verde : UI.Rojo;
+                subtitulo = _motivoRed;
+            }
+            else if (EnRed && !descalificado)
+            {
+                titulo = "ESPERANDO...";
+                colorTitulo = UI.Acento;
+                subtitulo = "El servidor está decidiendo quién ganó.";
+            }
+
             Rectangle panel = new Rectangle(anchoPantalla / 2 - 300, altoPantalla / 2 - 210, 600, 420);
             UI.Panel(spriteBatch, panel, 0.97f, colorTitulo);
 
@@ -944,7 +1094,8 @@ namespace La35Tunning.Escenas
 
             float x = panel.X + 110;
             float yTeclas = panel.Bottom - 58;
-            x += UI.Tecla(spriteBatch, new Vector2(x, yTeclas), "ENTER", "Revancha");
+            if (!EnRed)
+                x += UI.Tecla(spriteBatch, new Vector2(x, yTeclas), "ENTER", "Revancha");
             UI.Tecla(spriteBatch, new Vector2(x, yTeclas), "ESC", "Volver al menú");
         }
 

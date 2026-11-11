@@ -60,8 +60,12 @@ namespace La35Tunning.Sistemas
 
             Componente piezaSeleccionada = _catalogoPiezas[indicePieza];
 
+            // BUG ARREGLADO: antes devolvía false. Ahora, si ya la pagaste, se pone gratis.
             if (auto.TienePiezaComprada(piezaSeleccionada))
-                return false;
+            {
+                auto.InstalarPieza(piezaSeleccionada);
+                return true;
+            }
 
             if (!jugador.RestarDinero(piezaSeleccionada.Costo))
                 return false;

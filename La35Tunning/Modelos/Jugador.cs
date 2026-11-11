@@ -19,6 +19,13 @@ namespace La35Tunning.Modelos
             AutoActual = null;
         }
 
+        /// <summary>NUEVO: el jugador elige su nombre en la pantalla de red.</summary>
+        public void CambiarNombre(string nuevoNombre)
+        {
+            if (!string.IsNullOrWhiteSpace(nuevoNombre))
+                Nombre = nuevoNombre.Trim();
+        }
+
         public void AsignarAuto(Auto nuevoAuto)
         {
             AutoActual = nuevoAuto;

@@ -28,6 +28,8 @@ namespace La35Tunning.Escenas
 
         // ---- NUEVO: animaciones y datos para el diseño nuevo ----
         private Rectangle _rectBotonSalir;
+        private Rectangle _rectBotonRed;       // NUEVO: JUGAR EN RED
+        private float _hoverRed;
         private Point _posicionMouse;
         private bool _entradaInicializada;
         private float _tiempo;                 // tiempo total en el menú (para el "latido" del botón CORRER)
@@ -98,6 +100,7 @@ namespace La35Tunning.Escenas
             _hoverTaller = UI.Acercar(_hoverTaller, _rectBotonTaller.Contains(_posicionMouse) ? 1f : 0f, 8f, dt);
             _hoverCorrer = UI.Acercar(_hoverCorrer, _rectBotonCorrer.Contains(_posicionMouse) ? 1f : 0f, 8f, dt);
             _hoverConcesionario = UI.Acercar(_hoverConcesionario, _rectBotonConcesionario.Contains(_posicionMouse) ? 1f : 0f, 8f, dt);
+            _hoverRed = UI.Acercar(_hoverRed, _rectBotonRed.Contains(_posicionMouse) ? 1f : 0f, 8f, dt);
             _hoverSalir = UI.Acercar(_hoverSalir, _rectBotonSalir.Contains(_posicionMouse) ? 1f : 0f, 8f, dt);
 
             if (_mouseSobreConfiguracion)
@@ -123,6 +126,10 @@ namespace La35Tunning.Escenas
                 else if (_rectBotonConfiguracion.Contains(posicionMouse))
                 {
                     SiguienteEstado = EstadoJuego.Configuracion;
+                }
+                else if (_rectBotonRed.Contains(posicionMouse))
+                {
+                    SiguienteEstado = EstadoJuego.Red;
                 }
                 else if (_rectBotonSalir.Contains(posicionMouse))
                 {
@@ -153,6 +160,9 @@ namespace La35Tunning.Escenas
             DibujarBotonImagen(spriteBatch, _texturaTaller, _rectBotonTaller, _hoverTaller, 0f);
             DibujarBotonImagen(spriteBatch, _texturaConcesionario, _rectBotonConcesionario, _hoverConcesionario, 0f);
             DibujarBotonImagen(spriteBatch, _texturaCorrer, _rectBotonCorrer, _hoverCorrer, 0.12f + 0.12f * latido);
+
+            // NUEVO: botón para jugar contra otro jugador en la red local
+            UI.Boton(spriteBatch, _rectBotonRed, "JUGAR EN RED (LAN)", _hoverRed > 0.5f, true, new Color(30, 90, 150));
 
             // 4) Botones de arriba a la derecha: SALIR y configuración.
             UI.Boton(spriteBatch, _rectBotonSalir, "SALIR", _hoverSalir > 0.5f, true, new Color(70, 30, 36));
@@ -266,6 +276,8 @@ namespace La35Tunning.Escenas
             _rectBotonCorrer = new Rectangle(x, centroY - altoCorrer / 2, anchoCorrer, altoCorrer);
             x += anchoCorrer + separacion;
             _rectBotonConcesionario = new Rectangle(x, centroY - altoBoton / 2, anchoBoton, altoBoton);
+
+            _rectBotonRed = new Rectangle(ancho / 2 - 170, _rectBotonCorrer.Bottom + 22, 340, 50);
 
             _rectBotonConfiguracion = new Rectangle(ancho - 84, 20, 60, 60);
             _rectBotonSalir = new Rectangle(_rectBotonConfiguracion.X - 136, 28, 120, 44);

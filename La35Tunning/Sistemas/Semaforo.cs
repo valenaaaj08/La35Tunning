@@ -29,6 +29,7 @@ namespace La35Tunning.Sistemas
         private const float EsperaVerdeMaxima = 3.5f;
 
         private float _tiempoRestanteEnEstado;
+        private float _esperaFijaVerde = -1f;   // NUEVO: en red la elige el servidor (-1 = al azar)
         private readonly Random _random = new Random();
 
         public EstadoSemaforo Estado { get; private set; }
@@ -52,6 +53,15 @@ namespace La35Tunning.Sistemas
         {
             Estado = EstadoSemaforo.Luz1;
             _tiempoRestanteEnEstado = DuracionLuz;
+            _esperaFijaVerde = -1f;
+        }
+
+        /// <summary>NUEVO: en red los dos jugadores tienen que ver el verde al mismo tiempo,
+        /// así que la espera no es al azar: la manda el servidor.</summary>
+        public void ReiniciarConEspera(float segundos)
+        {
+            Reiniciar();
+            _esperaFijaVerde = segundos;
         }
 
         public void NotificarIntentoDeAcelerar()
@@ -91,8 +101,9 @@ namespace La35Tunning.Sistemas
 
                 case EstadoSemaforo.Luz3:
                     Estado = EstadoSemaforo.Luz4;
-                    _tiempoRestanteEnEstado = EsperaVerdeMinima +
-                        (float)(_random.NextDouble() * (EsperaVerdeMaxima - EsperaVerdeMinima));
+                    _tiempoRestanteEnEstado = _esperaFijaVerde >= 0f
+                        ? _esperaFijaVerde
+                        : EsperaVerdeMinima + (float)(_random.NextDouble() * (EsperaVerdeMaxima - EsperaVerdeMinima));
                     break;
 
                 case EstadoSemaforo.Luz4:

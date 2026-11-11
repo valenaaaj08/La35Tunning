@@ -226,3 +226,43 @@ mandámelo y lo arreglamos juntos.
 - El HUD viejo decía "S = FRENAR", pero en carrera frenar es **soltar W** (la S solo funciona en `Auto.Update`, que no se usa en carrera).
 - Sonidos: motor, cambio, semáforo.
 - Red (Etapas 3-4 de la propuesta).
+
+---
+
+# v0.4.0: juego en red
+
+## Cómo probarlo
+1. En la PC que hace de servidor, desde la carpeta del repo: `dotnet run --project La35Tunning.Servidor`
+   (la primera vez Windows pregunta por el firewall: tocá **Permitir**). La consola muestra la IP.
+2. En cada PC abrí el juego, equipá un auto y tocá **JUGAR EN RED (LAN)**.
+3. Escribí la IP que mostró el servidor (en la misma PC: `127.0.0.1`) y tocá **CONECTAR**.
+4. Cuando se conecta el segundo jugador, arranca la carrera en las dos PCs a la vez.
+
+Para probar solo en tu PC: abrí el servidor y **dos** juegos, los dos con `127.0.0.1`.
+
+## Cómo funciona (lo que tenés que saber explicar)
+- **Cliente-servidor**: el servidor no dibuja nada; solo coordina. Los juegos (clientes) se conectan a él por **TCP**, puerto 35035.
+- **Mensajes de texto**, uno por línea, con `|` entre los datos (lista completa arriba de `La35Tunning.Servidor/Program.cs`):
+  `HOLA|nombre|auto` → `INICIO|rival|autoRival|espera` → `POS|x` ↔ `RIVAL|x` → `META|tiempo` → `RESULTADO|GANASTE|motivo`.
+- **Mismo semáforo**: el servidor elige cuánto tarda el verde y se lo manda a los dos (`Semaforo.ReiniciarConEspera`).
+- **El servidor decide quién gana**, no el juego: el primero que manda `META` con un tiempo válido. Una salida anticipada o una desconexión le dan la carrera al otro.
+- **Hilos**: leer de la red deja al programa esperando. Por eso `ClienteRed` lee en un hilo aparte y deja los mensajes en una `ConcurrentQueue`; el juego los saca en cada `Update()` con `TryRecibir()`. El servidor usa un hilo por jugador.
+- Los números viajan con punto (`InvariantCulture`) porque Windows en español usa coma.
+
+## Archivos
+| Archivo | Qué hace |
+|---|---|
+| `La35Tunning.Servidor/Program.cs` | **Nuevo.** El servidor completo |
+| `Sistemas/ClienteRed.cs` | **Nuevo.** Conexión del juego con el servidor |
+| `Escenas/PantallaRed.cs` | **Nuevo.** Escribir la IP y esperar al rival |
+| `Escenas/PantallaCarrera.cs` | Modo en red: `IniciarCarreraEnRed`, `ProcesarMensajesDeRed`, `SalirDeRed` |
+| `Game1.cs`, `MenuPrincipal.cs`, `EstadoJuego.cs` | Botón y estado `Red` |
+| `Sistemas/Semaforo.cs`, `Entidades/Auto.cs` | `ReiniciarConEspera`, `MoverA` |
+| `Entidades/Auto.cs`, `Sistemas/Taller.cs`, `Escenas/PantallaTaller.cs` | Bug de las piezas |
+
+## Caja de cambios y nombres
+- **Cambios** (`Auto.cs`): `TopeDeMarcha` dice hasta qué % de la velocidad máxima llega cada marcha y `FuerzaDeMarcha` cuánto empuja. `Rpm` = velocidad / tope de la marcha (de 0 a 1). `PasarCambio()` sube una marcha y devuelve si el cambio fue perfecto (RPM de 90% o más), bueno (70% o más) o temprano. En `PantallaCarrera`, ESPACIO llama a `PasarCambio()` y la aguja del tablero usa `Rpm`.
+- **Nombres** (`PantallaRed.cs`, `Jugador.CambiarNombre`): caja TU NOMBRE arriba de la IP; TAB o clic cambia de caja. Al conectar se manda en el `HOLA`.
+
+## Qué falta de la propuesta (alcance deseable, no obligatorio)
+Login y base de datos, IA fantasma, matchmaking con varias salas a la vez, juego por Internet, caja manual con embrague, apuestas, ranking y sonido de motor.

@@ -26,6 +26,8 @@ namespace La35Tunning
         private PantallaConfiguracion _pantallaConfiguracion;
         private Sistemas.Concesionario _concesionarioSistema;
         private PantallaConcesionario _pantallaConcesionario;
+        private PantallaRed _pantallaRed;               // NUEVO
+        private Texture2D _texturaLlantaDefault;        // NUEVO: para armar el auto del rival en red
 
         private SpriteFont _fuente;
 
@@ -53,7 +55,9 @@ namespace La35Tunning
 
         protected override void Initialize()
         {
-            _jugador = new Jugador("Valentin", 7000000m);
+            // CAMBIO: antes siempre "Valentin". Ahora un nombre provisorio (ej: "Piloto47")
+            // que el jugador puede cambiar en la pantalla JUGAR EN RED.
+            _jugador = new Jugador("Piloto" + new Random().Next(10, 100), 7000000m);
             base.Initialize();
         }
 
@@ -145,6 +149,12 @@ namespace La35Tunning
                     DibujarCarrera();
                     break;
 
+                case EstadoJuego.Red:
+                    _spriteBatch.Begin();
+                    _pantallaRed.Draw(_spriteBatch);
+                    _spriteBatch.End();
+                    break;
+
                 case EstadoJuego.Configuracion:
                     _spriteBatch.Begin();
                     _menuPrincipal?.Draw(_spriteBatch, _fuente, GraphicsDevice);   // NUEVO: el menú queda de fondo
@@ -172,6 +182,8 @@ namespace La35Tunning
             _pantallaConfiguracion = new PantallaConfiguracion(GraphicsDevice);
 
             Texture2D texturaLlantaDefault = Content.Load<Texture2D>("llantaDefault");
+            _texturaLlantaDefault = texturaLlantaDefault;
+            _pantallaRed = new PantallaRed(_jugador);
             _concesionarioSistema = new Sistemas.Concesionario(Content, texturaLlantaDefault);
             _pantallaConcesionario = new PantallaConcesionario(_concesionarioSistema, _jugador, GraphicsDevice);
 
@@ -230,6 +242,10 @@ namespace La35Tunning
                 case EstadoJuego.Configuracion:
                     ActualizarConfiguracion(gameTime);
                     break;
+
+                case EstadoJuego.Red:
+                    ActualizarRed(gameTime);
+                    break;
             }
         }
 
@@ -286,6 +302,30 @@ namespace La35Tunning
             if (Keyboard.GetState().IsKeyDown(Keys.Escape))
             {
                 CambiarEstado(EstadoJuego.MenuPrincipal);
+            }
+        }
+
+        /// <summary>NUEVO: pantalla de conexión. Cuando el servidor dice INICIO, arranca la carrera en red.</summary>
+        private void ActualizarRed(GameTime gameTime)
+        {
+            _pantallaRed.Update(gameTime);
+
+            if (_pantallaRed.DebeVolver)
+            {
+                CambiarEstado(EstadoJuego.MenuPrincipal);
+                return;
+            }
+
+            if (_pantallaRed.CarreraLista)
+            {
+                Auto autoRival = AutoFactory.CrearAuto(_pantallaRed.ModeloRival, Content, _texturaLlantaDefault);
+
+                _pantallaCarrera.CambiarAutoJugador(_jugador.AutoActual);
+                _pantallaCarrera.IniciarCarreraEnRed(_pantallaRed.TomarCliente(), autoRival,
+                    _pantallaRed.NombreRival, _pantallaRed.EsperaVerde);
+
+                // No usamos CambiarEstado(Carrera) porque reiniciaría la carrera como si fuera contra la máquina.
+                _estadoActual = EstadoJuego.Carrera;
             }
         }
 
@@ -403,6 +443,22 @@ namespace La35Tunning
 
         private void CambiarEstado(EstadoJuego nuevoEstado)
         {
+            // NUEVO: al salir de una carrera en red se corta la conexión.
+            if (_estadoActual == EstadoJuego.Carrera && nuevoEstado != EstadoJuego.Carrera)
+            {
+                _pantallaCarrera?.SalirDeRed();
+            }
+
+            if (nuevoEstado == EstadoJuego.Red)
+            {
+                if (_jugador.AutoActual == null)
+                {
+                    MostrarErrorPantalla("Para jugar en red primero equipá un auto.");
+                    return;
+                }
+                _pantallaRed.Reiniciar();
+            }
+
             if (nuevoEstado == EstadoJuego.Carrera)
             {
                 if (_jugador.AutoActual == null)

@@ -6,6 +6,7 @@ namespace La35Tunning
         Taller,
         Concesionario,
         Carrera,
-        Configuracion
+        Configuracion,
+        Red          // NUEVO: pantalla para conectarse al servidor
     }
 }

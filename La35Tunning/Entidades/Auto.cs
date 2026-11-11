@@ -59,7 +59,7 @@ namespace La35Tunning.Entidades
         public float AceleracionReal { get { return CalcularAceleracionReal(); } }
         public Texture2D LlantaDelantera { get { return _llantaDelantera; } }
 
-        public const float DistanciaMeta = 2800f;
+        public const float DistanciaMeta = 4400f;   // CAMBIO: antes 2800 (la carrera duraba ~7 s, ahora ~12 s)
         private const float PosicionLargada = 100f;
 
         // NUEVO: para que la pista sepa dónde pintar la línea de largada y la de meta.
@@ -137,7 +137,9 @@ namespace La35Tunning.Entidades
 
         public void InstalarPieza(Componente nuevaPieza)
         {
-            if (nuevaPieza == null || _piezasCompradas.Contains(nuevaPieza))
+            // BUG ARREGLADO: antes, si la pieza ya estaba comprada, salía acá y no se podía
+            // volver a poner (ej: tenías Transmisión 3, te ponías la 2 y no podías volver a la 3).
+            if (nuevaPieza == null)
                 return;
 
             if (nuevaPieza is Motor motor)
@@ -167,6 +169,12 @@ namespace La35Tunning.Entidades
         public bool TienePiezaComprada(Componente pieza)
         {
             return pieza != null && _piezasCompradas.Contains(pieza);
+        }
+
+        /// <summary>NUEVO: true si la pieza es la que está puesta AHORA (no solo comprada).</summary>
+        public bool TienePiezaPuesta(Componente pieza)
+        {
+            return pieza != null && ObtenerComponentesInstalados().Contains(pieza);
         }
 
         public void MostrarFichaTecnica()
@@ -203,6 +211,19 @@ namespace La35Tunning.Entidades
             }
         }
 
+        /// <summary>NUEVO: en red, la posición del rival llega del servidor. Lo ponemos ahí
+        /// y giramos las ruedas según cuánto avanzó.</summary>
+        public void MoverA(float nuevaX)
+        {
+            float distancia = nuevaX - _posicion.X;
+            _posicion.X = nuevaX;
+            _velocidadActual = Math.Max(0f, distancia);
+            GirarLlantas(distancia);
+
+            if (_posicion.X >= PosicionLargada + DistanciaMeta)
+                LlegoAMeta = true;
+        }
+
         public void Descalificar()
         {
             Descalificado = true;
@@ -213,6 +234,7 @@ namespace La35Tunning.Entidades
             _posicion.X = PosicionLargada;
             _velocidadActual = 0f;
             _ultimoGiro = 0f;
+            Marcha = 1;   // NUEVO: cada carrera arranca en primera
             Descalificado = false;
             LlegoAMeta = false;
         }
@@ -275,6 +297,44 @@ namespace La35Tunning.Entidades
             }
         }
 
+        // ==================================================================
+        // NUEVO: CAJA DE CAMBIOS (5 marchas, sin embrague, ESPACIO sube un cambio)
+        // ==================================================================
+        // Cada marcha llega hasta un % de la velocidad máxima (TopeDeMarcha)
+        // y cuanto más alta es, menos empuja (FuerzaDeMarcha). Así:
+        //   - si no cambiás, el auto se queda "cortando" en el tope de la marcha;
+        //   - si cambiás muy temprano, la marcha nueva empuja poco y perdés tiempo.
+        public const int CantidadMarchas = 5;
+        private static readonly float[] TopeDeMarcha = { 0.30f, 0.50f, 0.70f, 0.86f, 1.00f };
+        // Ajustado para que cada marcha dure ~1 segundo y la carrera entre 10 y 15 s (como dice la propuesta).
+        private static readonly float[] FuerzaDeMarcha = { 0.20f, 0.14f, 0.10f, 0.075f, 0.06f };
+
+        public int Marcha { get; private set; } = 1;
+
+        /// <summary>Revoluciones de 0 a 1: qué tan cerca está el auto del tope de la marcha actual.</summary>
+        public float Rpm
+        {
+            get
+            {
+                float tope = CalcularVelocidadMaximaReal() * TopeDeMarcha[Marcha - 1];
+                return MathHelper.Clamp(_velocidadActual / tope, 0f, 1f);
+            }
+        }
+
+        /// <summary>Sube un cambio y devuelve un texto que dice qué tan bien lo hiciste ("" si ya estás en 5ta).</summary>
+        public string PasarCambio()
+        {
+            if (Marcha >= CantidadMarchas)
+                return "";
+
+            float rpmAlCambiar = Rpm;
+            Marcha++;
+
+            if (rpmAlCambiar >= 0.9f) return "¡CAMBIO PERFECTO!";
+            if (rpmAlCambiar >= 0.7f) return "BUEN CAMBIO";
+            return "CAMBIO TEMPRANO";
+        }
+
         public bool ActualizarEnCarrera(GameTime gameTime, bool semaforoEnVerde)
         {
             if (!semaforoEnVerde)
@@ -292,7 +352,10 @@ namespace La35Tunning.Entidades
 
             if (SeQuiereAcelerar())
             {
-                Acelerar(aceleracionReal, velocidadMaximaReal);
+                // CAMBIO: antes Acelerar(aceleracionReal, velocidadMaximaReal). Ahora depende de la marcha.
+                float topeDeLaMarcha = velocidadMaximaReal * TopeDeMarcha[Marcha - 1];
+                float fuerzaDeLaMarcha = aceleracionReal * FuerzaDeMarcha[Marcha - 1];
+                Acelerar(fuerzaDeLaMarcha, topeDeLaMarcha);
             }
             else
             {

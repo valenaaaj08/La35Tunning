@@ -196,14 +196,17 @@ namespace La35Tunning.Escenas
         {
             Componente pieza = _taller.CatalogoPiezas[_indiceSeleccionado];
 
-            if (_jugador.AutoActual.TienePiezaComprada(pieza))
+            if (_jugador.AutoActual.TienePiezaPuesta(pieza))
             {
-                MostrarMensaje($"El {pieza.Nombre} ya está instalado.", true);
+                MostrarMensaje($"{pieza.Nombre} ya está puesta.", true);
                 return;
             }
 
+            bool yaLaTenia = _jugador.AutoActual.TienePiezaComprada(pieza);
             bool instalada = _taller.InstalarPieza(_jugador.AutoActual, _indiceSeleccionado, _jugador);
-            if (instalada)
+            if (instalada && yaLaTenia)
+                MostrarMensaje($"Volviste a poner {pieza.Nombre} (gratis).", false);
+            else if (instalada)
                 MostrarMensaje($"¡Instalaste {pieza.Nombre}!", false);
             else
                 MostrarMensaje("No te alcanza la plata para esa pieza.", true);
@@ -402,7 +405,8 @@ namespace La35Tunning.Escenas
 
             bool seleccionada = indice == _indiceSeleccionado;
             bool encima = fila.Contains(_posicionMouse);
-            bool instalada = auto.TienePiezaComprada(pieza);
+            bool instalada = auto.TienePiezaPuesta(pieza);
+            bool comprada = auto.TienePiezaComprada(pieza);
             bool alcanza = _jugador.Dinero >= pieza.Costo;
 
             Color fondo = seleccionada ? new Color(60, 52, 24) : (encima ? UI.ColorPanelClaro : Color.Black * 0.25f);
@@ -422,8 +426,13 @@ namespace La35Tunning.Escenas
             Color colorDerecha;
             if (instalada)
             {
-                derecha = "INSTALADA";
+                derecha = "PUESTA";
                 colorDerecha = UI.Verde;
+            }
+            else if (comprada)
+            {
+                derecha = "COMPRADA";      // ya la pagaste: clic para volver a ponerla gratis
+                colorDerecha = UI.Azul;
             }
             else
             {

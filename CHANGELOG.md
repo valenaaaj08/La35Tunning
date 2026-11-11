@@ -108,5 +108,9 @@ Este archivo documenta todos los hitos y mejoras significativas en el desarrollo
 - **Carrera más larga**: `DistanciaMeta` pasa de 2800 a 4400 (unos 12 s) y cada marcha dura alrededor de 1 s. El rival de la máquina ahora acelera de a poco.
 - **Nombre del jugador**: se elige en la pantalla JUGAR EN RED (antes siempre era "Valentin"). Lo ven el rival y el servidor.
 
+### Búsqueda automática del servidor (broadcast UDP)
+- El juego busca el servidor solo al entrar a JUGAR EN RED: manda `LA35_BUSCAR` por **broadcast UDP** (puerto 35036) y el servidor le contesta `LA35_SERVIDOR`. La IP de quien contestó se pone sola en la caja. Hay un botón BUSCAR para volver a buscar, y la IP se puede seguir escribiendo a mano.
+- Servidor: `ResponderBusquedas()` en un hilo aparte. Juego: `ClienteRed.BuscarServidor()`, que corre en una `Task` para no congelar la pantalla.
+
 ### Correcciones
 - Si ya compraste una pieza y te pusiste otra, no podías volver a ponerte la primera. Ahora se vuelve a poner gratis y el taller muestra PUESTA / COMPRADA.

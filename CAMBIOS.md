@@ -264,5 +264,14 @@ Para probar solo en tu PC: abrí el servidor y **dos** juegos, los dos con `127.
 - **Cambios** (`Auto.cs`): `TopeDeMarcha` dice hasta qué % de la velocidad máxima llega cada marcha y `FuerzaDeMarcha` cuánto empuja. `Rpm` = velocidad / tope de la marcha (de 0 a 1). `PasarCambio()` sube una marcha y devuelve si el cambio fue perfecto (RPM de 90% o más), bueno (70% o más) o temprano. En `PantallaCarrera`, ESPACIO llama a `PasarCambio()` y la aguja del tablero usa `Rpm`.
 - **Nombres** (`PantallaRed.cs`, `Jugador.CambiarNombre`): caja TU NOMBRE arriba de la IP; TAB o clic cambia de caja. Al conectar se manda en el `HOLA`.
 
+## Búsqueda automática del servidor (UDP broadcast)
+Ahora el proyecto usa **los dos protocolos**:
+- **UDP con broadcast, puerto 35036, para encontrar el servidor.** El juego no sabe ninguna IP, así que manda un datagrama `LA35_BUSCAR` a la dirección de broadcast (`255.255.255.255` y la de cada placa de red, ej. `192.168.0.255`): le llega a **todas** las PCs de la red. El servidor, que escucha ese puerto en `ResponderBusquedas()`, le contesta `LA35_SERVIDOR` **directo a quien preguntó**. El juego mira **de qué IP vino la respuesta**: esa es la IP del servidor.
+- **TCP, puerto 35035, para jugar**, igual que antes.
+
+¿Por qué UDP para buscar? Porque TCP necesita saber a quién conectarse antes de mandar nada, y el broadcast solo existe en UDP. ¿Por qué no UDP para todo? Porque UDP no garantiza que lleguen los mensajes, y un `RESULTADO` perdido dejaría la carrera colgada.
+
+Dónde está: `ClienteRed.BuscarServidor()` y `DireccionesDeBroadcast()` en el juego, `Program.ResponderBusquedas()` en el servidor y `PantallaRed.EmpezarBusqueda()` / `TerminarBusqueda()`. La búsqueda corre en una `Task` (otro hilo) porque `Receive()` espera hasta 1,5 s y congelaría el juego.
+
 ## Qué falta de la propuesta (alcance deseable, no obligatorio)
 Login y base de datos, IA fantasma, matchmaking con varias salas a la vez, juego por Internet, caja manual con embrague, apuestas, ranking y sonido de motor.

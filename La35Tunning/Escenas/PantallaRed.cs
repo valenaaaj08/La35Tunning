@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -21,6 +22,10 @@ namespace La35Tunning.Escenas
         private bool _editandoNombre = true;       // qué caja recibe lo que se escribe
         private Rectangle _rectCajaNombre;
         private Rectangle _rectCajaIp;
+        private Rectangle _rectBuscar;
+        // NUEVO: la búsqueda espera ~1,5 s la respuesta del servidor. La hacemos en una
+        // Task (otro hilo) para que el juego no se congele mientras tanto.
+        private Task<string> _busqueda;
         private string _estado = "";
         private bool _estadoEsError;
         private float _tiempo;
@@ -54,6 +59,7 @@ namespace La35Tunning.Escenas
             _estado = "Escribí tu nombre y la IP de la PC donde está abierto el servidor.";
             _estadoEsError = false;
             _entradaInicializada = false;
+            EmpezarBusqueda();   // NUEVO: al entrar, busca el servidor solo
         }
 
         /// <summary>Game1 se queda con la conexión para usarla en la carrera.</summary>
@@ -82,8 +88,14 @@ namespace La35Tunning.Escenas
 
             bool hizoClic = mouse.LeftButton == ButtonState.Pressed && _mouseAnterior.LeftButton == ButtonState.Released;
 
+            if (_busqueda != null && _busqueda.IsCompleted)
+                TerminarBusqueda();
+
             if (_cliente == null)
             {
+                if (hizoClic && _rectBuscar.Contains(_posicionMouse))
+                    EmpezarBusqueda();
+
                 // TAB o clic en una caja: elegir si escribimos el nombre o la IP
                 if (teclado.IsKeyDown(Keys.Tab) && _tecladoAnterior.IsKeyUp(Keys.Tab))
                     _editandoNombre = !_editandoNombre;
@@ -165,6 +177,39 @@ namespace La35Tunning.Escenas
             }
         }
 
+        /// <summary>NUEVO: arranca la búsqueda del servidor por broadcast (si no hay una en curso).</summary>
+        private void EmpezarBusqueda()
+        {
+            if (_busqueda != null)
+                return;
+
+            _estado = "Buscando el servidor en la red";
+            _estadoEsError = false;
+            _busqueda = Task.Run(() => ClienteRed.BuscarServidor(1500));
+        }
+
+        /// <summary>NUEVO: cuando la búsqueda terminó, pone la IP encontrada en la caja.</summary>
+        private void TerminarBusqueda()
+        {
+            string ipEncontrada = _busqueda.Result;
+            _busqueda = null;
+
+            if (_cliente != null)
+                return;   // mientras buscaba ya se conectó a mano
+
+            if (ipEncontrada != null)
+            {
+                _ip = ipEncontrada;
+                _estado = $"Servidor encontrado en {ipEncontrada}. Tocá CONECTAR.";
+                _estadoEsError = false;
+            }
+            else
+            {
+                _estado = "No se encontró ningún servidor. Tocá BUSCAR o escribí la IP a mano.";
+                _estadoEsError = true;
+            }
+        }
+
         private void Conectar()
         {
             if (_nombre.Trim().Length == 0)
@@ -241,17 +286,21 @@ namespace La35Tunning.Escenas
 
             // Estado (con puntitos animados mientras espera)
             string estado = _estado;
-            if (_cliente != null && !_estadoEsError)
+            bool esperando = (_cliente != null || _busqueda != null) && !_estadoEsError;
+            if (esperando)
                 estado += new string('.', 1 + (int)(_tiempo * 2) % 3);
             UI.TextoCentrado(spriteBatch, UI.Fuente, estado, new Vector2(panel.Center.X, panel.Y + 342),
                 _estadoEsError ? UI.Rojo : (_cliente != null ? UI.Verde : UI.TextoSecundario));
 
-            _rectVolver = new Rectangle(panel.X + 60, panel.Y + 376, 220, 50);
-            _rectConectar = new Rectangle(panel.Right - 280, panel.Y + 376, 220, 50);
+            _rectVolver = new Rectangle(panel.X + 60, panel.Y + 376, 160, 50);
+            _rectBuscar = new Rectangle(panel.Center.X - 80, panel.Y + 376, 160, 50);
+            _rectConectar = new Rectangle(panel.Right - 220, panel.Y + 376, 160, 50);
             UI.Boton(spriteBatch, _rectVolver, "< VOLVER", _rectVolver.Contains(_posicionMouse));
+            bool puedeBuscar = escribiendo && _busqueda == null;
+            UI.Boton(spriteBatch, _rectBuscar, "BUSCAR", puedeBuscar && _rectBuscar.Contains(_posicionMouse), puedeBuscar, new Color(36, 92, 160));
             UI.Boton(spriteBatch, _rectConectar, "CONECTAR", escribiendo && _rectConectar.Contains(_posicionMouse), escribiendo, new Color(28, 120, 70));
 
-            UI.TextoCentrado(spriteBatch, UI.Fuente, "TAB cambia de caja  ·  El servidor se abre con: dotnet run --project La35Tunning.Servidor",
+            UI.TextoCentrado(spriteBatch, UI.Fuente, "TAB cambia de caja  ·  El servidor se busca solo (broadcast UDP)",
                 new Vector2(panel.Center.X, panel.Bottom - 34), UI.TextoSecundario, 0.8f);
         }
 

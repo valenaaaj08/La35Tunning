@@ -25,19 +25,29 @@ namespace La35Tunning.Servidor
     ///   SALIDA_ANTICIPADA                RIVAL|x
     ///   META|tiempo                      RESULTADO|GANASTE o PERDISTE|motivo
     ///
+    /// DESCUBRIMIENTO (UDP, puerto 35036): para no tener que escribir la IP a mano,
+    /// el juego manda por BROADCAST "LA35_BUSCAR" a toda la red local y el servidor
+    /// le contesta "LA35_SERVIDOR". Con eso el juego sabe la IP del servidor.
+    ///
     /// Cómo correrlo (desde la carpeta del repo):   dotnet run --project La35Tunning.Servidor
     /// </summary>
     public static class Program
     {
-        public const int Puerto = 35035;
+        public const int Puerto = 35035;                  // TCP: la carrera
+        public const int PuertoDescubrimiento = 35036;    // UDP: "¿hay algún servidor?"
 
         public static void Main()
         {
             TcpListener servidor = new TcpListener(IPAddress.Any, Puerto);
             servidor.Start();
 
+            // NUEVO: un hilo aparte contesta las búsquedas por broadcast mientras el
+            // hilo principal sigue esperando jugadores por TCP.
+            new Thread(ResponderBusquedas) { IsBackground = true }.Start();
+
             Console.WriteLine("=== Servidor La35Tunning ===");
-            Console.WriteLine($"Escuchando en el puerto {Puerto}. En el juego escribí una de estas IP:");
+            Console.WriteLine($"TCP puerto {Puerto} (carrera) - UDP puerto {PuertoDescubrimiento} (búsqueda automática)");
+            Console.WriteLine("Los juegos lo encuentran solos. Si no, escribí a mano una de estas IP:");
             MostrarMisIps();
 
             int numeroCarrera = 1;
@@ -78,6 +88,50 @@ namespace La35Tunning.Servidor
 
                 Console.WriteLine("  ! Conexión con saludo inválido, se descarta.");
                 jugador.Cerrar();
+            }
+        }
+
+        /// <summary>
+        /// NUEVO: escucha por UDP los "LA35_BUSCAR" que mandan los juegos por broadcast
+        /// y le contesta "LA35_SERVIDOR" directamente a quien preguntó. El juego saca
+        /// la IP del servidor de la respuesta (de quién se la mandó).
+        /// </summary>
+        private static void ResponderBusquedas()
+        {
+            try
+            {
+                using (UdpClient udp = new UdpClient(PuertoDescubrimiento))
+                {
+                    // En Windows, si una respuesta "rebota" (el juego ya cerró), el próximo
+                    // Receive() tiraría error. Esto lo desactiva (opción SIO_UDP_CONNRESET).
+                    try { udp.Client.IOControl(-1744830452, new byte[] { 0 }, null); } catch (Exception) { }
+
+                    while (true)
+                    {
+                        try
+                        {
+                            IPEndPoint quienPregunta = new IPEndPoint(IPAddress.Any, 0);
+                            byte[] datos = udp.Receive(ref quienPregunta);   // espera un datagrama
+                            string mensaje = Encoding.UTF8.GetString(datos);
+
+                            if (mensaje == "LA35_BUSCAR")
+                            {
+                                byte[] respuesta = Encoding.UTF8.GetBytes("LA35_SERVIDOR");
+                                udp.Send(respuesta, respuesta.Length, quienPregunta);
+                                Console.WriteLine($"  ? {quienPregunta.Address} buscó un servidor: le contestamos");
+                            }
+                        }
+                        catch (SocketException)
+                        {
+                            // Un error con un datagrama no tiene que apagar la búsqueda: seguimos escuchando.
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Si falla (ej: puerto ocupado), el juego igual se puede conectar escribiendo la IP.
+                Console.WriteLine("  ! No se pudo activar la búsqueda automática: " + ex.Message);
             }
         }
 

@@ -1,9 +1,9 @@
-
+﻿
 #----------------------------- Global Properties ----------------------------#
 
 /outputDir:bin/$(Platform)
 /intermediateDir:obj/$(Platform)
-/platform:DesktopGL
+/platform:Windows
 /config:
 /profile:Reach
 /compress:False
@@ -373,3 +373,5 @@
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
 /build:neumatico.png
+
+

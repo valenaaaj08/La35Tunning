@@ -80,7 +80,7 @@ namespace La35Tunning.Escenas
             _tiempoDesdeEntrada += dt;
 
             ActualizarRectangulos();
-            MouseState mouseActual = Mouse.GetState();
+            MouseState mouseActual = UI.LeerMouse();   // ANTES: Mouse.GetState() (posición del monitor, no del lienzo)
             _posicionMouse = mouseActual.Position;
 
             SiguienteEstado = null;
@@ -243,12 +243,15 @@ namespace La35Tunning.Escenas
             Color colorAuto = JugadorActual.AutoActual != null ? UI.Azul : UI.Rojo;
             chip = UI.Chip(spriteBatch, new Vector2(chip.Right + 16, y), "AUTO", auto, colorAuto);
 
-            UI.Chip(spriteBatch, new Vector2(chip.Right + 16, y), "DINERO", UI.Dinero(JugadorActual.Dinero), UI.Verde);
+            chip = UI.Chip(spriteBatch, new Vector2(chip.Right + 16, y), "DINERO", UI.Dinero(JugadorActual.Dinero), UI.Verde);
 
             string ayuda = JugadorActual.AutoActual == null
                 ? "Comprá y equipá un auto en el CONCESIONARIO para poder correr"
                 : "Elegí una opción con el mouse";
-            UI.TextoDerecha(spriteBatch, UI.Fuente, ayuda, new Vector2(ancho - 24, barra.Y + 22), UI.TextoSecundario);
+            // NUEVO: si no entra entre el último chip y el borde, se achica (antes se podían pisar).
+            float espacioAyuda = ancho - 24 - (chip.Right + 24);
+            float escalaAyuda = UI.EscalaParaAncho(UI.Fuente, ayuda, espacioAyuda);
+            UI.TextoDerecha(spriteBatch, UI.Fuente, ayuda, new Vector2(ancho - 24, barra.Y + 22), UI.TextoSecundario, escalaAyuda);
         }
 
         /// <summary>
@@ -258,8 +261,10 @@ namespace La35Tunning.Escenas
         /// </summary>
         private void ActualizarRectangulos()
         {
-            int ancho = _graphicsDevice.Viewport.Width;
-            int alto = _graphicsDevice.Viewport.Height;
+            // ANTES: _graphicsDevice.Viewport. Esto también se llama desde Update, donde
+            // el Viewport es el monitor y no el lienzo: por eso se usa el tamaño de UI.
+            int ancho = UI.AnchoPantalla;
+            int alto = UI.AltoPantalla;
 
             int altoBoton = (int)MathHelper.Clamp(alto * 0.17f, 100f, 210f);
             int anchoBoton = (int)(altoBoton * 1.97f);           // proporción de las imágenes de los botones

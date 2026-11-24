@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace La35Tunning.Sistemas
 {
@@ -54,6 +55,52 @@ namespace La35Tunning.Sistemas
             NumberGroupSeparator = ".",
             NumberDecimalSeparator = ","
         };
+
+        // ------------------------------------------------------------------
+        // NUEVO: PANTALLA "VIRTUAL" (para que el juego se vea igual en cualquier resolución)
+        // ------------------------------------------------------------------
+        // Todas las pantallas se diseñaron para 1080 px de alto. En vez de dibujar
+        // directo en el monitor, Game1 dibuja en un "lienzo" que SIEMPRE mide 1080 de
+        // alto (y por lo menos 1440 de ancho) y al final lo estira o achica al monitor.
+        // Así, en 1366x768, en 1920x1080 o en 4K, todo (textos, botones, paneles)
+        // mantiene la misma proporción y nada se pisa.
+        public const float AltoDeDiseno = 1080f;
+        public const float AnchoMinimoDeDiseno = 1440f;
+
+        /// <summary>Cuánto se agranda (o achica) el lienzo para llenar el monitor. En 1920x1080 vale 1.</summary>
+        public static float Escala { get; private set; } = 1f;
+
+        /// <summary>Tamaño del lienzo donde dibujan las pantallas (NO el del monitor).</summary>
+        public static int AnchoPantalla { get; private set; } = 1920;
+        public static int AltoPantalla { get; private set; } = 1080;
+
+        /// <summary>
+        /// Calcula la escala y el tamaño del lienzo a partir del tamaño real del monitor.
+        /// Game1 la llama en cada Update y en cada Draw.
+        /// </summary>
+        public static void AjustarPantalla(int anchoReal, int altoReal)
+        {
+            if (anchoReal <= 0 || altoReal <= 0)
+                return;
+
+            // La escala la pone el lado que "sobra" menos, así el diseño entra entero.
+            Escala = Math.Min(altoReal / AltoDeDiseno, anchoReal / AnchoMinimoDeDiseno);
+            AnchoPantalla = (int)Math.Round(anchoReal / Escala);
+            AltoPantalla = (int)Math.Round(altoReal / Escala);
+        }
+
+        /// <summary>
+        /// Lee el mouse y pasa su posición del monitor al lienzo (dividiendo por la escala).
+        /// Las pantallas usan esto en lugar de Mouse.GetState(); si no, en un monitor
+        /// que no sea 1080p los clics caerían corridos de los botones.
+        /// </summary>
+        public static MouseState LeerMouse()
+        {
+            MouseState real = Mouse.GetState();
+            return new MouseState(
+                (int)(real.X / Escala), (int)(real.Y / Escala), real.ScrollWheelValue,
+                real.LeftButton, real.MiddleButton, real.RightButton, real.XButton1, real.XButton2);
+        }
 
         /// <summary>
         /// Se llama una vez en Game1.LoadContent(). Si alguna fuente nueva no
@@ -262,7 +309,9 @@ namespace La35Tunning.Sistemas
             Borde(spriteBatch, r, resaltar ? 2 : 1, resaltar ? Acento : Color.Black * 0.6f);
 
             Color colorTexto = habilitado ? TextoClaro : TextoSecundario * 0.6f;
-            TextoCentrado(spriteBatch, fuente, texto, new Vector2(r.Center.X, r.Center.Y + 1), colorTexto);
+            // NUEVO: si el texto no entra en el botón (dejando 8 px de cada lado), se achica.
+            float escalaTexto = EscalaParaAncho(fuente, texto, r.Width - 16);
+            TextoCentrado(spriteBatch, fuente, texto, new Vector2(r.Center.X, r.Center.Y + 1), colorTexto, escalaTexto);
         }
 
         /// <summary>"Píldora" chiquita con etiqueta y valor (por ejemplo: DINERO  $ 7.000.000).</summary>
@@ -351,6 +400,35 @@ namespace La35Tunning.Sistemas
         {
             Vector2 medida = fuente.MeasureString(texto) * escala;
             Texto(spriteBatch, fuente, texto, new Vector2(posicion.X - medida.X, posicion.Y), color, escala, sombra);
+        }
+
+        /// <summary>
+        /// NUEVO: devuelve la escala para que "texto" no pase de "anchoMaximo" píxeles.
+        /// Si ya entra, devuelve la escala que le pasaste (no lo agranda nunca).
+        /// </summary>
+        public static float EscalaParaAncho(SpriteFont fuente, string texto, float anchoMaximo, float escala = 1f)
+        {
+            float ancho = fuente.MeasureString(texto).X * escala;
+            if (ancho <= anchoMaximo || ancho <= 0f)
+                return escala;
+            return escala * Math.Max(0f, anchoMaximo) / ancho;
+        }
+
+        /// <summary>NUEVO: igual que Texto, pero se achica si ocupa más de "anchoMaximo".</summary>
+        public static void TextoAjustado(SpriteBatch spriteBatch, SpriteFont fuente, string texto, Vector2 posicion, float anchoMaximo,
+            Color color, float escala = 1f, bool sombra = true)
+        {
+            float escalaFinal = EscalaParaAncho(fuente, texto, anchoMaximo, escala);
+            // Si se achicó, lo bajamos un poco para que siga centrado en la misma línea.
+            float bajar = fuente.LineSpacing * (escala - escalaFinal) / 2f;
+            Texto(spriteBatch, fuente, texto, new Vector2(posicion.X, posicion.Y + bajar), color, escalaFinal, sombra);
+        }
+
+        /// <summary>NUEVO: igual que TextoCentrado, pero se achica si ocupa más de "anchoMaximo".</summary>
+        public static void TextoCentradoAjustado(SpriteBatch spriteBatch, SpriteFont fuente, string texto, Vector2 centro, float anchoMaximo,
+            Color color, float escala = 1f, bool sombra = true)
+        {
+            TextoCentrado(spriteBatch, fuente, texto, centro, color, EscalaParaAncho(fuente, texto, anchoMaximo, escala), sombra);
         }
 
         /// <summary>Formato argentino: 7000000 -> "$ 7.000.000".</summary>

@@ -855,7 +855,9 @@ namespace La35Tunning.Escenas
 
             int metrosRestantes = (int)Math.Ceiling(400f * (1f - _autoJugador.ProgresoCarrera));
             UI.Texto(spriteBatch, UI.Fuente, "FALTAN", new Vector2(panel.X + 18, panel.Y + 100), UI.TextoSecundario);
-            UI.Texto(spriteBatch, UI.Negrita, $"{metrosRestantes} m", new Vector2(panel.X + 92, panel.Y + 97), UI.Acento);
+            // CAMBIO: antes panel.X + 92 fijo y se pisaba con "FALTAN" (que mide 81 px). Ahora se mide.
+            float despuesDeFaltan = panel.X + 18 + UI.Fuente.MeasureString("FALTAN").X + 10;
+            UI.Texto(spriteBatch, UI.Negrita, $"{metrosRestantes} m", new Vector2(despuesDeFaltan, panel.Y + 97), UI.Acento);
 
             UI.Chip(spriteBatch, new Vector2(panel.X, panel.Bottom + 10), "DINERO", UI.Dinero(_jugador.Dinero), UI.Verde);
         }
@@ -1083,8 +1085,11 @@ namespace La35Tunning.Escenas
                 spriteBatch.Draw(fallida, new Vector2(panel.X + 50, panel.Y + 30), limites, Color.White, 0f, Vector2.Zero, escala, SpriteEffects.None, 0f);
             }
 
-            UI.TextoCentrado(spriteBatch, UI.Titulo, titulo, new Vector2(panel.Center.X, panel.Y + 62), colorTitulo, descalificado ? 0.85f : 1.2f);
-            UI.TextoCentrado(spriteBatch, UI.Fuente, subtitulo, new Vector2(panel.Center.X, panel.Y + 116), UI.TextoSecundario);
+            // CAMBIO: Ajustado. Con salida anticipada se deja lugar al semáforo de la izquierda
+            // (antes "SALIDA ANTICIPADA" lo pisaba), y el motivo que manda el servidor puede ser largo.
+            int anchoTitulo = descalificado ? panel.Width - 200 : panel.Width - 60;
+            UI.TextoCentradoAjustado(spriteBatch, UI.Titulo, titulo, new Vector2(panel.Center.X, panel.Y + 62), anchoTitulo, colorTitulo, descalificado ? 0.85f : 1.2f);
+            UI.TextoCentradoAjustado(spriteBatch, UI.Fuente, subtitulo, new Vector2(panel.Center.X, panel.Y + 116), panel.Width - 60, UI.TextoSecundario);
 
             int y = panel.Y + 160;
             DibujarFilaResultado(spriteBatch, panel, ref y, "Tu tiempo", _tiempoFinalJugador > 0f ? $"{_tiempoFinalJugador:0.000} s" : "--", UI.TextoClaro);

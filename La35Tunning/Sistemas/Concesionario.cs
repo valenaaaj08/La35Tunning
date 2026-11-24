@@ -12,8 +12,15 @@ namespace La35Tunning.Sistemas
     {
         private List<Auto> _catalogo;
 
+        // NUEVO: para poder volver a fabricar un auto cuando lo vendés (ver DevolverAlCatalogo).
+        private readonly ContentManager _content;
+        private readonly Texture2D _texturaLlantaDefault;
+        private readonly List<string> _ordenOriginal = new List<string>();
+
         public Concesionario(ContentManager content, Texture2D texturaLlantaDefault)
         {
+            _content = content;
+            _texturaLlantaDefault = texturaLlantaDefault;
             _catalogo = new List<Auto>();
 
             Auto autoGol = AutoFactory.CrearGol(content, texturaLlantaDefault);
@@ -25,6 +32,10 @@ namespace La35Tunning.Sistemas
             _catalogo.Add(autoUno);
             _catalogo.Add(autoClio);
             _catalogo.Add(autoCorsa);
+
+            // NUEVO: anotamos el orden de la vidriera para devolver cada auto a su lugar.
+            foreach (Auto auto in _catalogo)
+                _ordenOriginal.Add(auto.Modelo);
         }
 
         public List<Auto> ObtenerCatalogo()
@@ -60,7 +71,34 @@ namespace La35Tunning.Sistemas
             jugador.SumarDinero(dineroGanado);
             jugador.QuitarAutoComprado(auto);
 
-            return $"Vendiste el {auto.Modelo} por ${dineroGanado}.";
+            // ARREGLO: antes el auto vendido desaparecía para siempre (no volvía a la venta).
+            DevolverAlCatalogo(auto.Modelo);
+
+            // CAMBIO: UI.Dinero -> "$ 1.900.000" (antes salía "$1900000,0").
+            return $"Vendiste el {auto.Modelo} por {UI.Dinero(dineroGanado)}.";
+        }
+
+        /// <summary>
+        /// NUEVO: pone a la venta un auto NUEVO del mismo modelo, en el mismo lugar de la
+        /// vidriera donde estaba al principio. Se fabrica de nuevo con AutoFactory (y no se
+        /// devuelve el mismo objeto) para que vuelva de fábrica: sin las piezas ni las
+        /// llantas que le pusiste en el taller.
+        /// </summary>
+        private void DevolverAlCatalogo(string modelo)
+        {
+            // Por las dudas: que no quede repetido en la vidriera.
+            if (_catalogo.Any(a => a.Modelo == modelo))
+                return;
+
+            Auto autoNuevo = AutoFactory.CrearAuto(modelo, _content, _texturaLlantaDefault);
+
+            // Buscamos la posición: después de todos los que estaban antes en el orden original.
+            int orden = _ordenOriginal.IndexOf(modelo);
+            int posicion = 0;
+            while (posicion < _catalogo.Count && _ordenOriginal.IndexOf(_catalogo[posicion].Modelo) < orden)
+                posicion++;
+
+            _catalogo.Insert(posicion, autoNuevo);
         }
     }
 }

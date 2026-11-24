@@ -31,6 +31,10 @@ namespace La35Tunning
 
         private SpriteFont _fuente;
 
+        // NUEVO (responsive): todo se dibuja primero acá, a 1080 de alto, y después
+        // se escala al tamaño real del monitor (ver UI.AjustarPantalla).
+        private RenderTarget2D _lienzo;
+
         private PantallaCarrera _pantallaCarrera;
         private Sistemas.Camera2D _camara;
 
@@ -109,6 +113,8 @@ namespace La35Tunning
 
         protected override void Update(GameTime gameTime)
         {
+            // NUEVO: las pantallas calculan sus botones con el tamaño del lienzo, no del monitor.
+            UI.AjustarPantalla(GraphicsDevice.PresentationParameters.BackBufferWidth, GraphicsDevice.PresentationParameters.BackBufferHeight);
             ActualizarTiempoDeErrores(gameTime);
             ActualizarEstadoActual(gameTime);
             base.Update(gameTime);
@@ -116,11 +122,13 @@ namespace La35Tunning
 
         protected override void Draw(GameTime gameTime)
         {
+            EmpezarLienzo();   // NUEVO: desde acá se dibuja en el lienzo, no en el monitor
             GraphicsDevice.Clear(Color.Black);
 
             if (_fuente == null)
             {
                 GraphicsDevice.Clear(Color.DarkRed);
+                TerminarLienzo();   // NUEVO
                 base.Draw(gameTime);
                 return;
             }
@@ -163,7 +171,46 @@ namespace La35Tunning
                     break;
             }
 
+            TerminarLienzo();   // NUEVO: pasa el lienzo al monitor
             base.Draw(gameTime);
+        }
+
+        /// <summary>
+        /// NUEVO (responsive): prepara el lienzo del tamaño que dice UI (1080 de alto)
+        /// y le dice a la placa de video que dibuje ahí en vez de en el monitor.
+        /// Mientras el lienzo está activo, GraphicsDevice.Viewport mide lo mismo que el
+        /// lienzo, así que las pantallas no tuvieron que cambiar su forma de medir.
+        /// </summary>
+        private void EmpezarLienzo()
+        {
+            UI.AjustarPantalla(GraphicsDevice.PresentationParameters.BackBufferWidth, GraphicsDevice.PresentationParameters.BackBufferHeight);
+
+            // Se crea una sola vez (y de nuevo solo si cambió el tamaño del monitor).
+            if (_lienzo == null || _lienzo.Width != UI.AnchoPantalla || _lienzo.Height != UI.AltoPantalla)
+            {
+                _lienzo?.Dispose();
+                _lienzo = new RenderTarget2D(GraphicsDevice, UI.AnchoPantalla, UI.AltoPantalla);
+            }
+
+            GraphicsDevice.SetRenderTarget(_lienzo);
+        }
+
+        /// <summary>
+        /// NUEVO (responsive): vuelve a dibujar en el monitor y estira el lienzo para
+        /// que lo cubra entero. "LinearClamp" suaviza al agrandar o achicar.
+        /// </summary>
+        private void TerminarLienzo()
+        {
+            GraphicsDevice.SetRenderTarget(null);
+            GraphicsDevice.Clear(Color.Black);
+
+            Rectangle monitor = new Rectangle(0, 0,
+                GraphicsDevice.PresentationParameters.BackBufferWidth,
+                GraphicsDevice.PresentationParameters.BackBufferHeight);
+
+            _spriteBatch.Begin(blendState: BlendState.Opaque, samplerState: SamplerState.LinearClamp);
+            _spriteBatch.Draw(_lienzo, monitor, Color.White);
+            _spriteBatch.End();
         }
 
         private void CrearPantallaMenuYMusica()

@@ -75,7 +75,7 @@ namespace La35Tunning.Escenas
         {
             _tiempo += (float)gameTime.ElapsedGameTime.TotalSeconds;
             KeyboardState teclado = Keyboard.GetState();
-            MouseState mouse = Mouse.GetState();
+            MouseState mouse = UI.LeerMouse();   // ANTES: Mouse.GetState() (solo cambia cómo se lee el mouse)
             _posicionMouse = mouse.Position;
 
             if (!_entradaInicializada)
@@ -289,7 +289,8 @@ namespace La35Tunning.Escenas
             bool esperando = (_cliente != null || _busqueda != null) && !_estadoEsError;
             if (esperando)
                 estado += new string('.', 1 + (int)(_tiempo * 2) % 3);
-            UI.TextoCentrado(spriteBatch, UI.Fuente, estado, new Vector2(panel.Center.X, panel.Y + 342),
+            // CAMBIO: Ajustado porque algunos mensajes eran más anchos que el panel.
+            UI.TextoCentradoAjustado(spriteBatch, UI.Fuente, estado, new Vector2(panel.Center.X, panel.Y + 342), panel.Width - 40,
                 _estadoEsError ? UI.Rojo : (_cliente != null ? UI.Verde : UI.TextoSecundario));
 
             _rectVolver = new Rectangle(panel.X + 60, panel.Y + 376, 160, 50);

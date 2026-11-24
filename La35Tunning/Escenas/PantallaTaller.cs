@@ -87,7 +87,7 @@ namespace La35Tunning.Escenas
         public void Update(GameTime gameTime)
         {
             var teclado = Keyboard.GetState();
-            var mouse = Mouse.GetState();
+            var mouse = UI.LeerMouse();   // ANTES: Mouse.GetState()
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _posicionMouse = mouse.Position;
             _rotacionLlantaVitrina += dt * 1.6f;
@@ -505,12 +505,15 @@ namespace La35Tunning.Escenas
             UI.Resplandor(spriteBatch, centro + new Vector2(0, diametro * 0.45f), diametro * 0.5f, 10f, Color.Black * 0.6f);
             spriteBatch.Draw(llanta, centro, limites, Color.White, rotacion, origen, escala, SpriteEffects.None, 0f);
 
-            UI.TextoCentrado(spriteBatch, UI.Negrita, _taller.NombresLlantas[indice],
-                new Vector2(tarjeta.Center.X, tarjeta.Bottom - 20), seleccionada ? UI.Acento : UI.TextoClaro, 0.85f);
+            // CAMBIO: TextoCentradoAjustado para que un nombre largo no se salga de la tarjeta.
+            UI.TextoCentradoAjustado(spriteBatch, UI.Negrita, _taller.NombresLlantas[indice],
+                new Vector2(tarjeta.Center.X, tarjeta.Bottom - 20), tarjeta.Width - 16, seleccionada ? UI.Acento : UI.TextoClaro, 0.85f);
 
             if (puesta)
             {
-                Rectangle etiqueta = new Rectangle(tarjeta.Right - 70, tarjeta.Y + 6, 64, 22);
+                // CAMBIO: el ancho de la etiqueta sale de medir el texto (antes 64 fijo y "PUESTA" quedaba justo).
+                int anchoEtiqueta = (int)(UI.Fuente.MeasureString("PUESTA").X * 0.75f) + 16;
+                Rectangle etiqueta = new Rectangle(tarjeta.Right - 6 - anchoEtiqueta, tarjeta.Y + 6, anchoEtiqueta, 22);
                 UI.Rect(spriteBatch, etiqueta, UI.Verde);
                 UI.TextoCentrado(spriteBatch, UI.Fuente, "PUESTA", new Vector2(etiqueta.Center.X, etiqueta.Center.Y), new Color(10, 40, 20), 0.75f, false);
             }

@@ -54,7 +54,7 @@ namespace La35Tunning.Escenas
 
         public void Update(GameTime gameTime)
         {
-            MouseState mouseActual = Mouse.GetState();
+            MouseState mouseActual = UI.LeerMouse();   // ANTES: Mouse.GetState()
             KeyboardState tecladoActual = Keyboard.GetState();
             _tiempoDesdeEntrada += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
@@ -164,8 +164,9 @@ namespace La35Tunning.Escenas
         /// </summary>
         private Vector2 ObtenerDesplazamiento()
         {
-            int ancho = _graphicsDevice.Viewport.Width;
-            int alto = _graphicsDevice.Viewport.Height;
+            // ANTES: _graphicsDevice.Viewport (en Update es el monitor, no el lienzo).
+            int ancho = UI.AnchoPantalla;
+            int alto = UI.AltoPantalla;
             return new Vector2(
                 Math.Max(0, (ancho - AnchoLienzo) / 2),
                 Math.Max(0, (alto - AltoLienzo) / 2));

@@ -61,7 +61,7 @@ namespace La35Tunning.Escenas
 
         public void Update(GameTime gameTime)
         {
-            MouseState mouseActual = Mouse.GetState();
+            MouseState mouseActual = UI.LeerMouse();   // ANTES: Mouse.GetState()
             _posicionMouse = mouseActual.Position;
 
             if (!_entradaInicializada)
@@ -141,6 +141,11 @@ namespace La35Tunning.Escenas
         // Medidas calculadas en cada Draw según la pantalla.
         private int _origenX, _origenY, _anchoColumna, _altoTarjeta;
         private const int SeparacionTarjetas = 14;
+
+        // NUEVO: medidas de los botones de cada tarjeta en un solo lugar. Antes el 140 y el
+        // 156 estaban repetidos y "COMPRAR" (139 px en Arial 20 negrita) no entraba en 140.
+        private const int AnchoBotonTarjeta = 160;
+        private const int MargenBotonTarjeta = 16;
 
         private void CalcularLayout(int anchoPantalla, int altoPantalla)
         {
@@ -222,7 +227,9 @@ namespace La35Tunning.Escenas
             List<Auto> catalogo = _concesionario.ObtenerCatalogo();
 
             UI.Texto(spriteBatch, UI.Negrita, "EN VENTA", new Vector2(x, y), UI.Acento);
-            UI.Texto(spriteBatch, UI.Fuente, $"{catalogo.Count} disponibles", new Vector2(x + 120, y + 3), UI.TextoSecundario);
+            // CAMBIO: antes x + 120 fijo y se pisaba con "EN VENTA". Ahora va justo después de medirlo.
+            float despuesDelTitulo = x + UI.Negrita.MeasureString("EN VENTA").X + 14;
+            UI.Texto(spriteBatch, UI.Fuente, $"{catalogo.Count} disponibles", new Vector2(despuesDelTitulo, y + 3), UI.TextoSecundario);
 
             // Flechas de scroll al costado del título
             _rectFlechaArriba = new Rectangle(x + _anchoColumna - 92, y - 4, 42, 32);
@@ -249,7 +256,7 @@ namespace La35Tunning.Escenas
 
                 DibujarFilaAuto(spriteBatch, fuente, fila, auto);
 
-                Rectangle botonComprar = new Rectangle(fila.Right - 156, fila.Center.Y - 21, 140, 42);
+                Rectangle botonComprar = new Rectangle(fila.Right - MargenBotonTarjeta - AnchoBotonTarjeta, fila.Center.Y - 21, AnchoBotonTarjeta, 42);
                 DibujarBotonColor(spriteBatch, botonComprar, "COMPRAR", puedeComprar, new Color(28, 120, 70));
 
                 if (puedeComprar)
@@ -258,9 +265,10 @@ namespace La35Tunning.Escenas
                 }
                 else
                 {
+                    // CAMBIO: Ajustado para que no se salga de la tarjeta (antes se cortaba a la derecha).
                     decimal falta = auto.Precio - _jugador.Dinero;
-                    UI.TextoCentrado(spriteBatch, UI.Fuente, "Te faltan " + UI.Dinero(falta),
-                        new Vector2(botonComprar.Center.X, botonComprar.Bottom + 14), UI.Rojo, 0.8f, false);
+                    UI.TextoCentradoAjustado(spriteBatch, UI.Fuente, "Te faltan " + UI.Dinero(falta),
+                        new Vector2(botonComprar.Center.X, botonComprar.Bottom + 14), botonComprar.Width + 2 * MargenBotonTarjeta - 8, UI.Rojo, 0.8f, false);
                 }
 
                 y += fila.Height + SeparacionTarjetas;
@@ -281,7 +289,9 @@ namespace La35Tunning.Escenas
             IReadOnlyList<Auto> autos = _jugador.AutosComprados;
 
             UI.Texto(spriteBatch, UI.Negrita, "TU GARAGE", new Vector2(x, y), UI.Acento);
-            UI.Texto(spriteBatch, UI.Fuente, $"{autos.Count} {(autos.Count == 1 ? "auto" : "autos")}", new Vector2(x + 140, y + 3), UI.TextoSecundario);
+            // CAMBIO: antes x + 140 fijo y se pisaba con "TU GARAGE".
+            float despuesDelTitulo = x + UI.Negrita.MeasureString("TU GARAGE").X + 14;
+            UI.Texto(spriteBatch, UI.Fuente, $"{autos.Count} {(autos.Count == 1 ? "auto" : "autos")}", new Vector2(despuesDelTitulo, y + 3), UI.TextoSecundario);
             y += 38;
 
             if (autos.Count == 0)
@@ -305,14 +315,15 @@ namespace La35Tunning.Escenas
                     UI.Borde(spriteBatch, fila, 2, UI.Acento);
                 }
 
-                Rectangle botonEquipar = new Rectangle(fila.Right - 156, fila.Y + 12, 140, 38);
-                Rectangle botonVender = new Rectangle(fila.Right - 156, fila.Bottom - 46, 140, 36);
+                int botonX = fila.Right - MargenBotonTarjeta - AnchoBotonTarjeta;
+                Rectangle botonEquipar = new Rectangle(botonX, fila.Y + 12, AnchoBotonTarjeta, 38);
+                Rectangle botonVender = new Rectangle(botonX, fila.Bottom - 46, AnchoBotonTarjeta, 36);
 
                 if (esElEquipado)
                 {
                     UI.Rect(spriteBatch, botonEquipar, UI.Acento * 0.15f);
                     UI.Borde(spriteBatch, botonEquipar, 1, UI.Acento);
-                    UI.TextoCentrado(spriteBatch, UI.Negrita, "EN USO", new Vector2(botonEquipar.Center.X, botonEquipar.Center.Y + 1), UI.Acento);
+                    UI.TextoCentradoAjustado(spriteBatch, UI.Negrita, "EN USO", new Vector2(botonEquipar.Center.X, botonEquipar.Center.Y + 1), botonEquipar.Width - 16, UI.Acento);
                 }
                 else
                 {
@@ -345,7 +356,8 @@ namespace La35Tunning.Escenas
             }
 
             // "Vidriera" donde se apoya el auto
-            int anchoFoto = (int)MathHelper.Clamp(fila.Height * 1.9f, 190f, 260f);
+            // CAMBIO: máximo 240 (antes 260) para dejarle más lugar al nombre del auto.
+            int anchoFoto = (int)MathHelper.Clamp(fila.Height * 1.9f, 190f, 240f);
             Rectangle foto = new Rectangle(fila.X + 10, fila.Y + 10, anchoFoto, fila.Height - 20);
             UI.Rect(spriteBatch, foto, new Color(12, 14, 19));
             UI.Resplandor(spriteBatch, new Vector2(foto.Center.X, foto.Y), foto.Width * 0.6f, foto.Height * 0.9f, Color.White * 0.08f);
@@ -360,28 +372,38 @@ namespace La35Tunning.Escenas
 
             // Datos
             int textoX = foto.Right + 18;
-            UI.Texto(spriteBatch, UI.Negrita, auto.Modelo, new Vector2(textoX, fila.Y + 12), UI.TextoClaro);
+            // NUEVO: hasta dónde puede llegar el texto sin meterse debajo de los botones.
+            int finTexto = fila.Right - MargenBotonTarjeta - AnchoBotonTarjeta - 12;
+            int anchoTexto = finTexto - textoX;
+
+            // CAMBIO: TextoAjustado -> un nombre largo ("Volkswagen Gol G3") se achica en vez de pisar el botón.
+            UI.TextoAjustado(spriteBatch, UI.Negrita, auto.Modelo, new Vector2(textoX, fila.Y + 12), anchoTexto, UI.TextoClaro);
 
             bool alcanza = _jugador.Dinero >= auto.Precio || _jugador.AutosComprados.Contains(auto);
-            UI.Texto(spriteBatch, UI.Negrita, UI.Dinero(auto.Precio), new Vector2(textoX, fila.Y + 40), alcanza ? UI.Acento : UI.Rojo);
+            UI.TextoAjustado(spriteBatch, UI.Negrita, UI.Dinero(auto.Precio), new Vector2(textoX, fila.Y + 40), anchoTexto, alcanza ? UI.Acento : UI.Rojo);
 
-            int anchoBarra = Math.Max(60, fila.Right - 170 - (textoX + 105));
+            // CAMBIO: antes la etiqueta tenía 100 px fijos y "ACELERAC." (101 px) tocaba la barra.
+            // Ahora se mide la etiqueta más larga y la barra empieza después.
+            const float EscalaEtiqueta = 0.85f;
+            int anchoEtiqueta = (int)(Math.Max(UI.Fuente.MeasureString("VEL. MÁX.").X, UI.Fuente.MeasureString("ACELERAC.").X) * EscalaEtiqueta) + 10;
+            int anchoBarra = Math.Max(40, finTexto - (textoX + anchoEtiqueta));
             int barraY = fila.Y + 74;
             if (fila.Height >= 120)
             {
-                DibujarEstadistica(spriteBatch, "VEL. MÁX.", (auto.VelocidadMaximaBase - 6f) / 3f, textoX, barraY, anchoBarra, UI.Azul);
-                DibujarEstadistica(spriteBatch, "ACELERAC.", (auto.AceleracionBase - 0.10f) / 0.10f, textoX, barraY + 24, anchoBarra, UI.Verde);
+                DibujarEstadistica(spriteBatch, "VEL. MÁX.", (auto.VelocidadMaximaBase - 6f) / 3f, textoX, barraY, anchoEtiqueta, anchoBarra, UI.Azul);
+                DibujarEstadistica(spriteBatch, "ACELERAC.", (auto.AceleracionBase - 0.10f) / 0.10f, textoX, barraY + 24, anchoEtiqueta, anchoBarra, UI.Verde);
             }
             else
             {
-                DibujarEstadistica(spriteBatch, "VEL. MÁX.", (auto.VelocidadMaximaBase - 6f) / 3f, textoX, barraY, anchoBarra, UI.Azul);
+                DibujarEstadistica(spriteBatch, "VEL. MÁX.", (auto.VelocidadMaximaBase - 6f) / 3f, textoX, barraY, anchoEtiqueta, anchoBarra, UI.Azul);
             }
         }
 
-        private void DibujarEstadistica(SpriteBatch spriteBatch, string nombre, float valor, int x, int y, int anchoBarra, Color color)
+        // CAMBIO: recibe anchoEtiqueta (antes la barra empezaba siempre en x + 100).
+        private void DibujarEstadistica(SpriteBatch spriteBatch, string nombre, float valor, int x, int y, int anchoEtiqueta, int anchoBarra, Color color)
         {
             UI.Texto(spriteBatch, UI.Fuente, nombre, new Vector2(x, y - 3), UI.TextoSecundario, 0.85f, false);
-            UI.Barra(spriteBatch, new Rectangle(x + 100, y, anchoBarra, 10), valor, color);
+            UI.Barra(spriteBatch, new Rectangle(x + anchoEtiqueta, y, anchoBarra, 10), valor, color);
         }
 
         private void DibujarBotonColor(SpriteBatch spriteBatch, Rectangle rect, string texto, bool habilitado, Color color)
